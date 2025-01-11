@@ -1,12 +1,12 @@
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
-    Argon2, PasswordHash, PasswordVerifier,
+    Argon2,
 };
 
 use crate::errors::PassmanError;
 
 pub struct Crypto {
-    argon2: Argon2<'static>,
+    pub argon2: Argon2<'static>,
 }
 
 impl Crypto {

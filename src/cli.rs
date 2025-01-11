@@ -1,3 +1,4 @@
+use argon2::password_hash::{PasswordHasher, SaltString};
 use clap::{Parser, Subcommand};
 use rpassword::read_password;
 
@@ -14,12 +15,13 @@ pub struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Init,
-    Add {
-        website_name: String,
-        website_url: Option<String>,
-        username: String,
-        password: String,
-    },
+    Add,
+    // Add {
+    //     website_name: String,
+    //     website_url: Option<String>,
+    //     username: String,
+    //     password: String,
+    // },
     List {
         website_name: Option<String>, // if not provided, list all
     },
@@ -43,6 +45,8 @@ impl CliHandler {
         if !matches!(cli.command, Commands::Init) {
             self.verify_master_password()?;
         }
+
+        println!("master password verified"); // for testing
 
         match cli.command {
             Commands::Init => self.handle_init(),
@@ -77,7 +81,29 @@ impl CliHandler {
     }
 
     fn verify_master_password(&self) -> Result<(), PassmanError> {
-        // verify master password
+        // get salt and hash from db
+        // generate hash from input and salt
+        // compare hash
+        // return ok or error
+
+        println!("Enter your master password first: ");
+        let master_password: String = read_password().map_err(|_| PassmanError::ReadInputError)?;
+
+        let (salt, stored_hash) = self
+            .db
+            .get_master_salt_and_hash()
+            .map_err(|_| PassmanError::GetDbError)?;
+        let salt_string = get_salt_string(&salt)?;
+        let hash = self
+            .crypto
+            .argon2
+            .hash_password(master_password.as_bytes(), &salt_string)
+            .map_err(|_| PassmanError::HashPasswordError)?;
+
+        if hash.to_string() != stored_hash {
+            return Err(PassmanError::PasswordMismatchError);
+        }
+
         Ok(())
     }
 
@@ -90,4 +116,8 @@ impl CliHandler {
         // list all passwords or requested website
         Ok(())
     }
+}
+
+fn get_salt_string(salt: &str) -> Result<SaltString, PassmanError> {
+    SaltString::from_b64(salt).map_err(|_| PassmanError::HashPasswordError)
 }

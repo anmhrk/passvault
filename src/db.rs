@@ -17,7 +17,8 @@ impl Database {
                 id INTEGER PRIMARY KEY,
                 title TEXT NOT NULL,
                 username TEXT NOT NULL,
-                password_hash TEXT NOT NULL,
+                encrypted_password TEXT NOT NULL,
+                iv TEXT NOT NULL,
                 url TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
@@ -44,6 +45,20 @@ impl Database {
             [hash, salt, &now()],
         )?;
         Ok(())
+    }
+
+    pub fn get_master_salt_and_hash(&self) -> Result<(String, String)> {
+        let salt =
+            self.conn
+                .query_row("SELECT salt FROM master_password WHERE id = 1", [], |row| {
+                    row.get(0)
+                })?;
+        let hash =
+            self.conn
+                .query_row("SELECT hash FROM master_password WHERE id = 1", [], |row| {
+                    row.get(0)
+                })?;
+        Ok((salt, hash))
     }
 
     pub fn add_password() {}

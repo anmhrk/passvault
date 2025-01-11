@@ -12,4 +12,6 @@ pub enum PassmanError {
     HashPasswordError,
     #[error("Failed to store password in database")]
     StoreDbError,
+    #[error("Database get error")]
+    GetDbError,
 }
