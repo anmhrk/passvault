@@ -1,9 +1,9 @@
 use clap::{Parser, Subcommand};
 use rpassword::read_password;
 
-use crate::errors::PassmanError;
-use crate::db::Database;
 use crate::crypto::Crypto;
+use crate::db::Database;
+use crate::errors::PassmanError;
 
 #[derive(Parser)]
 pub struct Cli {
@@ -23,7 +23,7 @@ enum Commands {
     List {
         website_name: Option<String>, // if not provided, list all
     },
-    // add copy, delete, update, export
+    // add copy, delete, update, export, reset, update master password
 }
 
 pub struct CliHandler {
@@ -33,7 +33,7 @@ pub struct CliHandler {
 
 impl CliHandler {
     pub fn new(db_name: &str) -> Result<Self, PassmanError> {
-        let db = Database::new(db_name).map_err(|_| PassmanError::DbError)?;
+        let db = Database::new(db_name).map_err(|_| PassmanError::InitDbError)?;
         let crypto = Crypto::new();
         Ok(CliHandler { db, crypto })
     }
@@ -53,30 +53,26 @@ impl CliHandler {
 
     fn handle_init(&self) -> Result<(), PassmanError> {
         println!("Welcome to Passman!");
+
+        // init db tables
+        self.db.init().map_err(|_| PassmanError::InitDbError)?;
+
         println!("Setup your master password: ");
         let master_password: String = read_password().map_err(|_| PassmanError::ReadInputError)?;
         println!("Confirm your master password: ");
-        let master_password_confirm: String = read_password().map_err(|_| PassmanError::ReadInputError)?;
-    
+        let master_password_confirm: String =
+            read_password().map_err(|_| PassmanError::ReadInputError)?;
+
         if master_password != master_password_confirm {
             return Err(PassmanError::PasswordMismatchError);
         }
 
-        // hash and save pwd 
+        let (hash, salt) = self.crypto.hash_password(&master_password)?;
+        self.db
+            .store_master_password(&hash, &salt)
+            .map_err(|_| PassmanError::StoreDbError)?;
 
-        println!("Setup database name: (press enter to use default: passman.db)");
-        let mut db_name = String::new();
-
-        std::io::stdin().read_line(&mut db_name).map_err(|_| PassmanError::ReadInputError)?;
-        let db_name = db_name.trim();
-        let db_name = if db_name.is_empty() {
-            "passman.db"
-        } else {
-            db_name
-        };
-    
-        // init database
-        println!("Passman initialized successfully at {}", db_name);
+        println!("Passman initialized successfully. Run `passman add` to add your first password.");
         Ok(())
     }
 

@@ -6,6 +6,10 @@ pub enum PassmanError {
     ReadInputError,
     #[error("Passwords do not match")]
     PasswordMismatchError,
-    #[error("Database error")]
-    DbError,
+    #[error("Failed to initialize database")]
+    InitDbError,
+    #[error("Failed to hash password")]
+    HashPasswordError,
+    #[error("Failed to store password in database")]
+    StoreDbError,
 }
