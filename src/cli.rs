@@ -3,6 +3,7 @@ use rpassword::read_password;
 
 use crate::errors::PassmanError;
 use crate::db::Database;
+use crate::crypto::Crypto;
 
 #[derive(Parser)]
 pub struct Cli {
@@ -27,12 +28,14 @@ enum Commands {
 
 pub struct CliHandler {
     db: Database,
+    crypto: Crypto,
 }
 
 impl CliHandler {
-    pub fn new(db_path: &str) -> Result<Self, PassmanError> {
-        let db = Database::new(db_path).map_err(|_| PassmanError::DbError)?;
-        Ok(CliHandler { db })
+    pub fn new(db_name: &str) -> Result<Self, PassmanError> {
+        let db = Database::new(db_name).map_err(|_| PassmanError::DbError)?;
+        let crypto = Crypto::new();
+        Ok(CliHandler { db, crypto })
     }
 
     pub fn handle_command(&self, cli: Cli) -> Result<(), PassmanError> {
@@ -49,19 +52,31 @@ impl CliHandler {
     }
 
     fn handle_init(&self) -> Result<(), PassmanError> {
-        // init database
-    
-        println!("Welcome to Passman! Please setup your master password: ");
-        let master_password: String = read_password().map_err(|_| PassmanError::AuthError)?;
-        println!("Please confirm your master password: ");
-        let master_password_confirm: String = read_password().map_err(|_| PassmanError::AuthError)?;
+        println!("Welcome to Passman!");
+        println!("Setup your master password: ");
+        let master_password: String = read_password().map_err(|_| PassmanError::ReadInputError)?;
+        println!("Confirm your master password: ");
+        let master_password_confirm: String = read_password().map_err(|_| PassmanError::ReadInputError)?;
     
         if master_password != master_password_confirm {
-            return Err(PassmanError::AuthError);
+            return Err(PassmanError::PasswordMismatchError);
         }
-    
+
         // hash and save pwd 
-        println!("Passman initialized successfully");
+
+        println!("Setup database name: (press enter to use default: passman.db)");
+        let mut db_name = String::new();
+
+        std::io::stdin().read_line(&mut db_name).map_err(|_| PassmanError::ReadInputError)?;
+        let db_name = db_name.trim();
+        let db_name = if db_name.is_empty() {
+            "passman.db"
+        } else {
+            db_name
+        };
+    
+        // init database
+        println!("Passman initialized successfully at {}", db_name);
         Ok(())
     }
 
