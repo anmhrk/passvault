@@ -2,6 +2,7 @@ mod cli;
 mod crypto;
 mod db;
 mod errors;
+mod utils;
 
 use clap::Parser;
 use cli::{Cli, CliHandler};

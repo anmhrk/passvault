@@ -1,5 +1,6 @@
-use chrono::{DateTime, Utc};
 use rusqlite::{Connection, Result};
+
+use crate::utils::now;
 
 pub struct Database {
     conn: Connection,
@@ -48,17 +49,27 @@ impl Database {
     }
 
     pub fn get_master_salt_and_hash(&self) -> Result<(String, String)> {
-        let salt =
-            self.conn
-                .query_row("SELECT salt FROM master_password WHERE id = 1", [], |row| {
-                    row.get(0)
-                })?;
-        let hash =
-            self.conn
-                .query_row("SELECT hash FROM master_password WHERE id = 1", [], |row| {
-                    row.get(0)
-                })?;
-        Ok((salt, hash))
+        self.conn.query_row(
+            "SELECT salt, hash FROM master_password WHERE id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+    }
+
+    pub fn get_last_access(&self) -> Result<String> {
+        self.conn.query_row(
+            "SELECT last_accessed FROM master_password WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
+    }
+
+    pub fn update_last_access(&self) -> Result<()> {
+        self.conn.execute(
+            "UPDATE master_password SET last_accessed = ? WHERE id = 1",
+            [now()],
+        )?;
+        Ok(())
     }
 
     pub fn add_password() {}
@@ -74,9 +85,4 @@ impl Database {
     pub fn update_master_password() {}
 
     pub fn reset_database() {}
-}
-
-fn now() -> String {
-    let now: DateTime<Utc> = Utc::now();
-    now.to_rfc3339()
 }

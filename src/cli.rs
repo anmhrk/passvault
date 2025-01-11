@@ -1,10 +1,11 @@
-use argon2::password_hash::{PasswordHasher, SaltString};
+use argon2::password_hash::PasswordHasher;
 use clap::{Parser, Subcommand};
 use rpassword::read_password;
 
 use crate::crypto::Crypto;
 use crate::db::Database;
 use crate::errors::PassmanError;
+use crate::utils::{get_salt_string, is_session_expired};
 
 #[derive(Parser)]
 pub struct Cli {
@@ -15,13 +16,9 @@ pub struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Init,
-    Add,
-    // Add {
-    //     website_name: String,
-    //     website_url: Option<String>,
-    //     username: String,
-    //     password: String,
-    // },
+    Add {
+        website_name: Option<String>,
+    },
     List {
         website_name: Option<String>, // if not provided, list all
     },
@@ -43,10 +40,15 @@ impl CliHandler {
     pub fn handle_command(&self, cli: Cli) -> Result<(), PassmanError> {
         // only verify master password if not initializing
         if !matches!(cli.command, Commands::Init) {
-            self.verify_master_password()?;
+            if is_session_expired(
+                &self
+                    .db
+                    .get_last_access()
+                    .map_err(|_| PassmanError::GetDbError)?,
+            ) {
+                self.verify_master_password()?;
+            }
         }
-
-        println!("master password verified"); // for testing
 
         match cli.command {
             Commands::Init => self.handle_init(),
@@ -104,6 +106,10 @@ impl CliHandler {
             return Err(PassmanError::PasswordMismatchError);
         }
 
+        self.db
+            .update_last_access()
+            .map_err(|_| PassmanError::UpdateDbError)?;
+
         Ok(())
     }
 
@@ -116,8 +122,4 @@ impl CliHandler {
         // list all passwords or requested website
         Ok(())
     }
-}
-
-fn get_salt_string(salt: &str) -> Result<SaltString, PassmanError> {
-    SaltString::from_b64(salt).map_err(|_| PassmanError::HashPasswordError)
 }

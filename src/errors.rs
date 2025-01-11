@@ -2,16 +2,20 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum PassmanError {
-    #[error("Failed to read input")]
+    #[error("Error: Failed to read input")]
     ReadInputError,
-    #[error("Passwords do not match")]
+    #[error("Error: Passwords do not match")]
     PasswordMismatchError,
-    #[error("Failed to initialize database")]
+    #[error("Error: Failed to initialize database")]
     InitDbError,
-    #[error("Failed to hash password")]
+    #[error("Error: Failed to hash password")]
     HashPasswordError,
-    #[error("Failed to store password in database")]
+    #[error("Error: Failed to convert salt to string")]
+    SaltStringError,
+    #[error("Error: Failed to store password in database")]
     StoreDbError,
-    #[error("Database get error")]
+    #[error("Error: Failed to get from database")]
     GetDbError,
+    #[error("Error: Failed to update database")]
+    UpdateDbError,
 }
