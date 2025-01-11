@@ -4,4 +4,6 @@ use thiserror::Error;
 pub enum PassmanError {
     #[error("Authentication error")]
     AuthError,
+    #[error("Database error")]
+    DbError,
 }
