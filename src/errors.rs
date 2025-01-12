@@ -8,14 +8,12 @@ pub enum PassmanError {
     PasswordMismatchError,
     #[error("Error: Failed to initialize database")]
     InitDbError,
-    #[error("Error: Failed to hash password")]
-    HashPasswordError,
-    #[error("Error: Failed to convert salt to string")]
-    SaltStringError,
     #[error("Error: Failed to store password in database")]
     StoreDbError,
     #[error("Error: Failed to get from database")]
     GetDbError,
     #[error("Error: Failed to update database")]
     UpdateDbError,
+    #[error("Error: Something went wrong with encryption")]
+    CryptoError,
 }

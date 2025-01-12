@@ -1,5 +1,6 @@
 use argon2::password_hash::SaltString;
 use chrono::{DateTime, Duration, Utc};
+use std::io;
 
 use crate::errors::PassmanError;
 
@@ -9,7 +10,7 @@ pub fn now() -> String {
 }
 
 pub fn get_salt_string(salt: &str) -> Result<SaltString, PassmanError> {
-    SaltString::from_b64(salt).map_err(|_| PassmanError::SaltStringError)
+    SaltString::from_b64(salt).map_err(|_| PassmanError::CryptoError)
 }
 
 pub fn is_session_expired(last_access: &str) -> bool {
@@ -19,4 +20,12 @@ pub fn is_session_expired(last_access: &str) -> bool {
     let timeout = Duration::minutes(5);
     let last_access: DateTime<Utc> = last_access.parse().unwrap();
     Utc::now() - last_access > timeout
+}
+
+pub fn read_line() -> Result<String, PassmanError> {
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .map_err(|_| PassmanError::ReadInputError)?;
+    Ok(input.trim().to_string())
 }

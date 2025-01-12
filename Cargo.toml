@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+aes-gcm = "0.10.3"
 argon2 = "0.5.3"
+base64 = "0.22.1"
 chrono = "0.4.39"
 clap = { version = "4.5.26", features = ["derive"] }
 rand = "0.8.5"

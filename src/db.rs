@@ -72,7 +72,20 @@ impl Database {
         Ok(())
     }
 
-    pub fn add_password() {}
+    pub fn add_password(
+        &self,
+        title: &str,
+        username: &str,
+        password: &str,
+        iv: &str,
+        url: &str,
+    ) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO passwords (title, username, encrypted_password, iv, url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [title, username, password, iv, url, &now(), &now()],
+        )?;
+        Ok(())
+    }
 
     pub fn list_passwords() {}
 
