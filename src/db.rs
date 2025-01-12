@@ -16,11 +16,11 @@ impl Database {
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS passwords (
                 id INTEGER PRIMARY KEY,
-                title TEXT NOT NULL,
+                website_name TEXT NOT NULL,
                 username TEXT NOT NULL,
                 encrypted_password TEXT NOT NULL,
                 iv TEXT NOT NULL,
-                url TEXT,
+                website_url TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )",
@@ -38,6 +38,16 @@ impl Database {
         )?;
 
         Ok(())
+    }
+
+    pub fn check_if_initialized(&self) -> bool {
+        let result = self.conn.query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='master_password'",
+            [],
+            |row| row.get::<_, i32>(0),
+        );
+
+        matches!(result, Ok(1))
     }
 
     pub fn store_master_password(&self, hash: &str, salt: &str) -> Result<()> {
@@ -74,27 +84,25 @@ impl Database {
 
     pub fn add_password(
         &self,
-        title: &str,
+        website_name: &str,
         username: &str,
         password: &str,
         iv: &str,
-        url: &str,
+        website_url: &str,
     ) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO passwords (title, username, encrypted_password, iv, url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [title, username, password, iv, url, &now(), &now()],
+            "INSERT INTO passwords (website_name, username, encrypted_password, iv, website_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [website_name, username, password, iv, website_url, &now(), &now()],
         )?;
         Ok(())
     }
 
     pub fn list_passwords(&self) -> Result<Vec<String>> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT encrypted_password FROM passwords")?;
-        let titles = stmt
+        let mut stmt = self.conn.prepare("SELECT website_name FROM passwords")?;
+        let website_names = stmt
             .query_map([], |row| row.get(0))?
             .collect::<Result<Vec<String>>>()?;
-        Ok(titles)
+        Ok(website_names)
     }
 
     pub fn get_password(&self) {}

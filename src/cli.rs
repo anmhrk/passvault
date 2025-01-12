@@ -30,13 +30,21 @@ pub struct CliHandler {
 }
 
 impl CliHandler {
-    pub fn new(db_name: &str) -> Result<Self, PassmanError> {
-        let db = Database::new(db_name).map_err(|_| PassmanError::InitDbError)?;
+    pub fn new(db_path: &str) -> Result<Self, PassmanError> {
+        let db = Database::new(db_path).map_err(|_| PassmanError::InitDbError)?;
         let crypto = Crypto::new();
         Ok(CliHandler { db, crypto })
     }
 
     pub fn handle_command(&self, cli: Cli) -> Result<(), PassmanError> {
+        // first check if db is initialized before running any commands
+        // also once initialized, don't allow init command
+        if !self.db.check_if_initialized() && !matches!(cli.command, Commands::Init) {
+            return Err(PassmanError::DbNotInitializedError);
+        } else if self.db.check_if_initialized() && matches!(cli.command, Commands::Init) {
+            return Err(PassmanError::DbAlreadyInitializedError);
+        }
+
         let mut key = None;
 
         // only verify master password if not initializing
@@ -60,10 +68,6 @@ impl CliHandler {
 
     fn handle_init(&self) -> Result<(), PassmanError> {
         println!("Welcome to Passman!");
-
-        // init db tables
-        self.db.init().map_err(|_| PassmanError::InitDbError)?;
-
         println!("Setup your master password: ");
         let master_password: String = read_password().map_err(|_| PassmanError::ReadInputError)?;
         println!("Confirm your master password: ");
@@ -73,6 +77,9 @@ impl CliHandler {
         if master_password != master_password_confirm {
             return Err(PassmanError::PasswordMismatchError);
         }
+
+        // init db tables
+        self.db.init().map_err(|_| PassmanError::InitDbError)?;
 
         let (hash, salt) = self.crypto.hash_password(&master_password)?;
         self.db
@@ -119,8 +126,8 @@ impl CliHandler {
     }
 
     fn handle_add(&self, key: Option<Vec<u8>>) -> Result<(), PassmanError> {
-        println!("Title/Website Name: ");
-        let title: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
+        println!("Website Name: ");
+        let website_name: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
 
         println!("Website URL: (optional, press enter to skip)");
         let website_url: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
@@ -134,7 +141,7 @@ impl CliHandler {
         if let Some(key) = key {
             let (ciphertext, iv) = self.crypto.encrypt_password(&password, &key)?;
             self.db
-                .add_password(&title, &username, &ciphertext, &iv, &website_url)
+                .add_password(&website_name, &username, &ciphertext, &iv, &website_url)
                 .map_err(|_| PassmanError::StoreDbError)?;
         }
 
@@ -143,14 +150,14 @@ impl CliHandler {
     }
 
     fn handle_list(&self) -> Result<(), PassmanError> {
-        println!("Here are all of your stored passwords:");
-        let passwords = self
+        println!("Here are all of your stored passwords by website name:");
+        let website_names = self
             .db
             .list_passwords()
             .map_err(|_| PassmanError::GetDbError)?;
 
-        for password in passwords {
-            println!("{}", password);
+        for website_name in website_names {
+            println!("{}", website_name);
         }
 
         println!();

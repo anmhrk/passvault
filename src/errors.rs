@@ -16,4 +16,8 @@ pub enum PassmanError {
     UpdateDbError,
     #[error("Error: Something went wrong with encryption")]
     CryptoError,
+    #[error("Error: Database not initialized. Run `passman init` first.")]
+    DbNotInitializedError,
+    #[error("Error: Passman already initialized. Run `passman` to see options.")]
+    DbAlreadyInitializedError,
 }
