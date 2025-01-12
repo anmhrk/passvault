@@ -105,7 +105,13 @@ impl Database {
         Ok(website_names)
     }
 
-    pub fn get_password(&self) {}
+    pub fn get_password(&self, website_name: &str) -> Result<(String, String, String)> {
+        self.conn.query_row(
+            "SELECT username, encrypted_password, iv FROM passwords WHERE website_name = ?",
+            [website_name],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+    }
 
     pub fn update_password() {}
 

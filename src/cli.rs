@@ -18,7 +18,6 @@ enum Commands {
     Init,
     Add,
     List {
-        #[arg(short)]
         website_name: Option<String>, // if not provided, list all
     },
     // add copy, delete, update, export, reset, update master password
@@ -62,7 +61,7 @@ impl CliHandler {
         match cli.command {
             Commands::Init => self.handle_init(),
             Commands::Add => self.handle_add(key),
-            Commands::List { .. } => self.handle_list(),
+            Commands::List { .. } => self.handle_list(&cli, key),
         }
     }
 
@@ -128,6 +127,7 @@ impl CliHandler {
     fn handle_add(&self, key: Option<Vec<u8>>) -> Result<(), PassmanError> {
         println!("Website Name: ");
         let website_name: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
+        let website_name = website_name.trim().to_lowercase();
 
         println!("Website URL: (optional, press enter to skip)");
         let website_url: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
@@ -138,30 +138,52 @@ impl CliHandler {
         println!("Password: ");
         let password: String = read_password().map_err(|_| PassmanError::ReadInputError)?;
 
-        if let Some(key) = key {
-            let (ciphertext, iv) = self.crypto.encrypt_password(&password, &key)?;
-            self.db
-                .add_password(&website_name, &username, &ciphertext, &iv, &website_url)
-                .map_err(|_| PassmanError::StoreDbError)?;
-        }
+        let key = key.ok_or(PassmanError::CryptoError)?;
+        let (ciphertext, iv) = self.crypto.encrypt_password(&password, &key)?;
+        self.db
+            .add_password(&website_name, &username, &ciphertext, &iv, &website_url)
+            .map_err(|_| PassmanError::StoreDbError)?;
 
         println!("Password added successfully.");
         Ok(())
     }
 
-    fn handle_list(&self) -> Result<(), PassmanError> {
-        println!("Here are all of your stored passwords by website name:");
-        let website_names = self
-            .db
-            .list_passwords()
-            .map_err(|_| PassmanError::GetDbError)?;
+    fn handle_list(&self, cli: &Cli, key: Option<Vec<u8>>) -> Result<(), PassmanError> {
+        if let Commands::List { website_name } = &cli.command {
+            if let Some(website_name) = website_name {
+                let key = key.ok_or(PassmanError::CryptoError)?;
 
-        for website_name in website_names {
-            println!("{}", website_name);
+                let (username, ciphertext, iv) = self
+                    .db
+                    .get_password(&website_name)
+                    .map_err(|_| PassmanError::PasswordNotFoundError)?;
+                let password = self.crypto.decrypt_password(&ciphertext, &iv, &key)?;
+
+                println!("Website: {}", website_name);
+                println!("Username: {}", username);
+                println!("Password: {}", password);
+            } else {
+                let website_names = self
+                    .db
+                    .list_passwords()
+                    .map_err(|_| PassmanError::GetDbError)?;
+
+                if website_names.is_empty() {
+                    println!("No websites found. Run `passman add` to add your first website.");
+                } else {
+                    println!("Here are all of your stored websites:");
+                    for website_name in website_names {
+                        println!("{}", website_name);
+                    }
+
+                    println!();
+                    println!(
+                        "Run `passman list <website_name>` to get the credentials for a specific website."
+                    );
+                }
+            }
         }
 
-        println!();
-        println!("Run `passman list <website_name>` to get the password for a specific website.");
         Ok(())
     }
 }
