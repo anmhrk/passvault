@@ -87,9 +87,17 @@ impl Database {
         Ok(())
     }
 
-    pub fn list_passwords() {}
+    pub fn list_passwords(&self) -> Result<Vec<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT encrypted_password FROM passwords")?;
+        let titles = stmt
+            .query_map([], |row| row.get(0))?
+            .collect::<Result<Vec<String>>>()?;
+        Ok(titles)
+    }
 
-    pub fn get_password() {}
+    pub fn get_password(&self) {}
 
     pub fn update_password() {}
 

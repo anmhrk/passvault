@@ -119,8 +119,8 @@ impl CliHandler {
     }
 
     fn handle_add(&self, key: Option<Vec<u8>>) -> Result<(), PassmanError> {
-        println!("Website name: ");
-        let website_name: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
+        println!("Title/Website Name: ");
+        let title: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
 
         println!("Website URL: (optional, press enter to skip)");
         let website_url: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
@@ -134,7 +134,7 @@ impl CliHandler {
         if let Some(key) = key {
             let (ciphertext, iv) = self.crypto.encrypt_password(&password, &key)?;
             self.db
-                .add_password(&website_name, &website_url, &username, &ciphertext, &iv)
+                .add_password(&title, &username, &ciphertext, &iv, &website_url)
                 .map_err(|_| PassmanError::StoreDbError)?;
         }
 
@@ -143,7 +143,18 @@ impl CliHandler {
     }
 
     fn handle_list(&self) -> Result<(), PassmanError> {
-        // list all passwords or requested website
+        println!("Here are all of your stored passwords:");
+        let passwords = self
+            .db
+            .list_passwords()
+            .map_err(|_| PassmanError::GetDbError)?;
+
+        for password in passwords {
+            println!("{}", password);
+        }
+
+        println!();
+        println!("Run `passman list <website_name>` to get the password for a specific website.");
         Ok(())
     }
 }
