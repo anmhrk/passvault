@@ -57,7 +57,7 @@ impl CliHandler {
             Commands::Add => self.handle_add(&key),
             Commands::List { .. } => self.handle_list(&cli, &key),
             Commands::Reset => self.handle_reset(&key),
-            Commands::Export => self.handle_export(&key),
+            Commands::Export => self.handle_export(),
         }
     }
 
@@ -118,9 +118,6 @@ impl CliHandler {
         println!("Website Name: ");
         let website_name: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
 
-        println!("Website URL: (optional, press enter to skip)");
-        let website_url: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
-
         println!("Username: ");
         let username: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
 
@@ -129,7 +126,7 @@ impl CliHandler {
 
         let (ciphertext, iv) = self.crypto.encrypt_password(&password, &key)?;
         self.db
-            .add_password(&website_name, &username, &ciphertext, &iv, &website_url)
+            .add_password(&website_name, &username, &ciphertext, &iv)
             .map_err(|_| PassmanError::StoreDbError)?;
 
         println!("Password added successfully.");
@@ -152,6 +149,8 @@ impl CliHandler {
 
         let (name, username, ciphertext, iv) = &website_names[selection];
         let password = self.crypto.decrypt_password(&ciphertext, &iv, &key)?;
+
+        // return relevant info for list_options
         Ok((name.clone(), username.clone(), password))
     }
 
@@ -165,8 +164,8 @@ impl CliHandler {
         let options = vec![
             "Display credentials",
             "Copy password to clipboard",
-            "Update",
-            "Delete",
+            "Update credentials",
+            "Delete password",
             "Exit",
         ];
         let selection = Select::with_theme(&ColorfulTheme::default())
@@ -197,19 +196,50 @@ impl CliHandler {
                         clipboard
                             .set_text("")
                             .map_err(|_| PassmanError::ClipboardError)?;
-                        println!("Clipboard cleared.");
+                        println!("Successfully cleared clipboard.");
                     } else {
-                        println!("Clipboard content has changed. Not clearing.");
+                        return Err(PassmanError::ClipboardError);
                     }
                 } else {
                     return Err(PassmanError::ClipboardError);
                 }
             }
             2 => {
-                // update
+                let update_selection = Select::with_theme(&ColorfulTheme::default())
+                    .with_prompt("What would you like to update?")
+                    .items(&["Username", "Password", "Exit"])
+                    .default(0)
+                    .interact()
+                    .map_err(|_| PassmanError::ReadInputError)?;
+
+                match update_selection {
+                    0 => {
+                        println!("Enter new username: ");
+                        let new_username: String =
+                            read_line().map_err(|_| PassmanError::ReadInputError)?;
+                        self.db
+                            .update_password(website, Some(new_username), None, None)
+                            .map_err(|_| PassmanError::UpdateDbError)?;
+                        println!("Username updated successfully.");
+                    }
+                    1 => {
+                        println!("Enter new password: ");
+                        let new_password: String =
+                            read_password().map_err(|_| PassmanError::ReadInputError)?;
+                        let (ciphertext, iv) = self.crypto.encrypt_password(&new_password, &key)?;
+                        self.db
+                            .update_password(website, None, Some(ciphertext), Some(iv))
+                            .map_err(|_| PassmanError::UpdateDbError)?;
+                        println!("Password updated successfully.");
+                    }
+                    _ => {}
+                }
             }
             3 => {
-                // delete
+                // self.db
+                //     .delete_password(website)
+                //     .map_err(|_| PassmanError::DeleteDbError)?;
+                // println!("Password deleted successfully.");
             }
             _ => {}
         }
@@ -232,14 +262,14 @@ impl CliHandler {
                 if results.len() == 1 {
                     let (website, username, ciphertext, iv) = results.first().unwrap();
                     let password = self.crypto.decrypt_password(&ciphertext, &iv, &key)?;
-                    self.handle_list_options(&website, &username, &password, key)?;
+                    self.handle_list_options(&website, &username, &password, &key)?;
                 } else {
                     let (name, username, password) = self.display_website_names(
                         results,
                         key,
                         "Multiple matches found. Select one:",
                     )?;
-                    self.handle_list_options(&name, &username, &password, key)?;
+                    self.handle_list_options(&name, &username, &password, &key)?;
                 }
             } else {
                 let website_names = self
@@ -255,7 +285,7 @@ impl CliHandler {
                         key,
                         "Here are all of your stored websites. Select one:",
                     )?;
-                    self.handle_list_options(&name, &username, &password, key)?;
+                    self.handle_list_options(&name, &username, &password, &key)?;
                 }
             }
         }
@@ -267,7 +297,7 @@ impl CliHandler {
         Ok(())
     }
 
-    fn handle_export(&self, key: &Vec<u8>) -> Result<(), PassmanError> {
+    fn handle_export(&self) -> Result<(), PassmanError> {
         Ok(())
     }
 }

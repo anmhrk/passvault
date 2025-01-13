@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Result};
+use rusqlite::{types::ToSql, Connection, Result};
 
 use crate::utils::now;
 
@@ -20,7 +20,6 @@ impl Database {
                 username TEXT NOT NULL,
                 encrypted_password TEXT NOT NULL,
                 iv TEXT NOT NULL,
-                website_url TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )",
@@ -71,27 +70,17 @@ impl Database {
         username: &str,
         password: &str,
         iv: &str,
-        website_url: &str,
     ) -> Result<()> {
         self.conn.execute(
             "INSERT INTO passwords (
                 website_name, 
                 username, 
                 encrypted_password, 
-                iv, 
-                website_url, 
+                iv,
                 created_at, 
                 updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [
-                website_name,
-                username,
-                password,
-                iv,
-                website_url,
-                &now(),
-                &now(),
-            ],
+            [website_name, username, password, iv, &now(), &now()],
         )?;
         Ok(())
     }
@@ -102,8 +91,7 @@ impl Database {
     ) -> Result<Vec<(String, String, String, String)>> {
         if let Some(website_name) = website_name {
             let mut stmt = self.conn.prepare(
-                "SELECT website_name, username, encrypted_password, iv 
-                FROM passwords 
+                "SELECT website_name, username, encrypted_password, iv FROM passwords 
                 WHERE LOWER(website_name) LIKE LOWER(?)",
             )?;
 
@@ -114,10 +102,9 @@ impl Database {
 
             results.collect()
         } else {
-            let mut stmt = self.conn.prepare(
-                "SELECT website_name, username, encrypted_password, iv 
-                FROM passwords",
-            )?;
+            let mut stmt = self
+                .conn
+                .prepare("SELECT website_name, username, encrypted_password, iv FROM passwords")?;
             let results = stmt.query_map([], |row| {
                 Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
             })?;
@@ -126,7 +113,42 @@ impl Database {
         }
     }
 
-    pub fn update_password() {}
+    pub fn update_password(
+        &self,
+        website_name: &str,
+        username: Option<String>,
+        password: Option<String>,
+        iv: Option<String>,
+    ) -> Result<()> {
+        let mut query = String::from("UPDATE passwords SET ");
+        let mut params: Vec<Box<dyn ToSql>> = Vec::new();
+        let mut set_clauses = Vec::new();
+
+        if let Some(username) = username {
+            set_clauses.push("username = ?");
+            params.push(Box::new(username));
+        }
+        if let Some(password) = password {
+            set_clauses.push("encrypted_password = ?");
+            params.push(Box::new(password));
+        }
+        if let Some(iv) = iv {
+            set_clauses.push("iv = ?");
+            params.push(Box::new(iv));
+        }
+
+        let now = now();
+        set_clauses.push("updated_at = ?");
+        params.push(Box::new(now));
+
+        query.push_str(&set_clauses.join(", "));
+        query.push_str(" WHERE website_name = ?");
+        params.push(Box::new(website_name.to_string()));
+
+        let param_refs: Vec<&dyn ToSql> = params.iter().map(|p| p.as_ref()).collect();
+        self.conn.execute(&query, param_refs.as_slice())?;
+        Ok(())
+    }
 
     pub fn delete_password() {}
 
