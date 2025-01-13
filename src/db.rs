@@ -1,7 +1,5 @@
 use rusqlite::{types::ToSql, Connection, Result};
 
-use crate::utils::now;
-
 pub struct Database {
     conn: Connection,
 }
@@ -19,9 +17,7 @@ impl Database {
                 website_name TEXT NOT NULL,
                 username TEXT NOT NULL,
                 encrypted_password TEXT NOT NULL,
-                iv TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                iv TEXT NOT NULL
             )",
             [],
         )?;
@@ -87,11 +83,9 @@ impl Database {
                 website_name, 
                 username, 
                 encrypted_password, 
-                iv,
-                created_at, 
-                updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?)",
-            [website_name, username, password, iv, &now(), &now()],
+                iv
+            ) VALUES (?, ?, ?, ?)",
+            [website_name, username, password, iv],
         )?;
 
         Ok(())
@@ -134,9 +128,6 @@ impl Database {
     ) -> Result<()> {
         let mut set_clauses = Vec::new();
         let mut params: Vec<Box<dyn ToSql>> = Vec::new();
-
-        set_clauses.push("updated_at = ?");
-        params.push(Box::new(now()));
 
         if let Some(username) = username {
             set_clauses.push("username = ?");

@@ -1,8 +1,10 @@
 use arboard::Clipboard;
 use argon2::password_hash::PasswordHasher;
 use clap::{Parser, Subcommand};
+use csv::Writer;
 use dialoguer::{theme::ColorfulTheme, Select};
 use rpassword::read_password;
+use std::fs::File;
 
 use crate::crypto::Crypto;
 use crate::db::Database;
@@ -57,12 +59,12 @@ impl CliHandler {
             Commands::Add => self.handle_add(&key),
             Commands::List { .. } => self.handle_list(&cli, &key),
             Commands::Reset => self.handle_reset(),
-            Commands::Export => self.handle_export(),
+            Commands::Export => self.handle_export(&key),
         }
     }
 
     fn handle_init(&self) -> Result<(), PassmanError> {
-        println!("Welcome to Passman!");
+        println!("Welcome to Passman! 🚀");
         println!("Setup your master password: ");
         let master_password: String = read_password().map_err(|_| PassmanError::ReadInputError)?;
         println!("Confirm your master password: ");
@@ -315,7 +317,39 @@ impl CliHandler {
         Ok(())
     }
 
-    fn handle_export(&self) -> Result<(), PassmanError> {
+    fn handle_export(&self, key: &Vec<u8>) -> Result<(), PassmanError> {
+        println!("Give your desired export file name: ");
+        let export_file_name: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
+        let export_file_path = format!("{}.csv", export_file_name);
+        println!("Exporting passwords...");
+
+        let file = File::create(&export_file_path).map_err(|_| PassmanError::ExportFileError)?;
+        let mut writer = Writer::from_writer(file);
+
+        writer
+            .write_record(&["Website", "Username", "Password"])
+            .map_err(|_| PassmanError::ExportFileError)?;
+
+        let passwords = self
+            .db
+            .list_passwords(None)
+            .map_err(|_| PassmanError::GetDbError)?;
+
+        for (website, username, ciphertext, iv) in passwords {
+            let password = self.crypto.decrypt_password(&ciphertext, &iv, &key)?;
+            writer
+                .write_record(&[website, username, password])
+                .map_err(|_| PassmanError::ExportFileError)?;
+        }
+
+        writer.flush().map_err(|_| PassmanError::ExportFileError)?;
+
+        println!("Passwords exported successfully.");
+        println!(
+            "File saved at: {} in the current directory.",
+            &export_file_path
+        );
+
         Ok(())
     }
 }

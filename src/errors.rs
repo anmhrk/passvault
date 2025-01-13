@@ -36,4 +36,6 @@ pub enum PassmanError {
         "A password with that website name already exists. Try a different variation if needed."
     )]
     WebsiteAlreadyExistsError,
+    #[error("Failed to create export file")]
+    ExportFileError,
 }
