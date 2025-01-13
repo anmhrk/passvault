@@ -1,11 +1,12 @@
 use argon2::password_hash::PasswordHasher;
 use clap::{Parser, Subcommand};
+use dialoguer::{theme::ColorfulTheme, Select};
 use rpassword::read_password;
 
 use crate::crypto::Crypto;
 use crate::db::Database;
 use crate::errors::PassmanError;
-use crate::utils::{get_salt_string, read_line};
+use crate::utils::{display_credentials, get_salt_string, read_line};
 
 #[derive(Parser)]
 pub struct Cli {
@@ -47,6 +48,7 @@ impl CliHandler {
 
         let mut key = Vec::new();
 
+        // verify master password if not init
         if !matches!(cli.command, Commands::Init) {
             key = self.verify_master_password()?;
         }
@@ -114,7 +116,6 @@ impl CliHandler {
     fn handle_add(&self, key: &Vec<u8>) -> Result<(), PassmanError> {
         println!("Website Name: ");
         let website_name: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
-        let website_name = website_name.trim().to_lowercase();
 
         println!("Website URL: (optional, press enter to skip)");
         let website_url: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
@@ -137,15 +138,32 @@ impl CliHandler {
     fn handle_list(&self, cli: &Cli, key: &Vec<u8>) -> Result<(), PassmanError> {
         if let Commands::List { website_name } = &cli.command {
             if let Some(website_name) = website_name {
-                let (username, ciphertext, iv) = self
+                let results = self
                     .db
                     .get_password(&website_name)
                     .map_err(|_| PassmanError::WebsiteNotFoundError)?;
-                let password = self.crypto.decrypt_password(&ciphertext, &iv, &key)?;
 
-                println!("Website: {}", website_name);
-                println!("Username: {}", username);
-                println!("Password: {}", password);
+                if results.is_empty() {
+                    return Err(PassmanError::WebsiteNotFoundError);
+                }
+
+                if results.len() == 1 {
+                    let (website, username, ciphertext, iv) = results.first().unwrap();
+                    let password = self.crypto.decrypt_password(&ciphertext, &iv, &key)?;
+                    display_credentials(&website, &username, &password);
+                } else {
+                    let names: Vec<&String> = results.iter().map(|(name, _, _, _)| name).collect();
+                    let selection = Select::with_theme(&ColorfulTheme::default())
+                        .with_prompt("Multiple matches found. Select one:")
+                        .items(&names)
+                        .default(0)
+                        .interact()
+                        .map_err(|_| PassmanError::ReadInputError)?;
+
+                    let (name, username, ciphertext, iv) = &results[selection];
+                    let password = self.crypto.decrypt_password(&ciphertext, &iv, &key)?;
+                    display_credentials(name, username, &password);
+                }
             } else {
                 let website_names = self
                     .db

@@ -9,6 +9,7 @@ argon2 = "0.5.3"
 base64 = "0.22.1"
 chrono = { version = "0.4.39", features = ["serde"] }
 clap = { version = "4.5.26", features = ["derive"] }
+dialoguer = "0.11.0"
 rpassword = "7.3.1"
 rusqlite = { version = "0.32.1", features = ["bundled"] }
 thiserror = "2.0.11"

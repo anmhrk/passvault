@@ -20,3 +20,9 @@ pub fn read_line() -> Result<String, PassmanError> {
         .map_err(|_| PassmanError::ReadInputError)?;
     Ok(input.trim().to_string())
 }
+
+pub fn display_credentials(website: &str, username: &str, password: &str) {
+    println!("Website: {}", website);
+    println!("Username: {}", username);
+    println!("Password: {}", password);
+}

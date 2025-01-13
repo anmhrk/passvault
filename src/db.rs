@@ -88,12 +88,22 @@ impl Database {
         Ok(website_names)
     }
 
-    pub fn get_password(&self, website_name: &str) -> Result<(String, String, String)> {
-        self.conn.query_row(
-            "SELECT username, encrypted_password, iv FROM passwords WHERE website_name = ?",
-            [website_name],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )
+    pub fn get_password(
+        &self,
+        website_name: &str,
+    ) -> Result<Vec<(String, String, String, String)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT website_name, username, encrypted_password, iv 
+             FROM passwords 
+             WHERE LOWER(website_name) LIKE LOWER(?)",
+        )?;
+
+        let pattern = format!("%{}%", website_name);
+        let results = stmt.query_map([pattern], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })?;
+
+        results.collect()
     }
 
     pub fn update_password() {}
