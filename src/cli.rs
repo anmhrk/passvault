@@ -1,11 +1,20 @@
 use argon2::password_hash::PasswordHasher;
+use chrono::{DateTime, Utc};
 use clap::{Parser, Subcommand};
+use keyring::Entry;
 use rpassword::read_password;
+use serde::{Deserialize, Serialize};
 
 use crate::crypto::Crypto;
 use crate::db::Database;
 use crate::errors::PassmanError;
 use crate::utils::{get_salt_string, is_session_expired, read_line};
+
+#[derive(Serialize, Deserialize)]
+struct CachedKey {
+    key: Vec<u8>,
+    timestamp: DateTime<Utc>,
+}
 
 #[derive(Parser)]
 pub struct Cli {
@@ -26,13 +35,21 @@ enum Commands {
 pub struct CliHandler {
     db: Database,
     crypto: Crypto,
+    keyring: Entry,
 }
 
 impl CliHandler {
     pub fn new(db_path: &str) -> Result<Self, PassmanError> {
         let db = Database::new(db_path).map_err(|_| PassmanError::InitDbError)?;
         let crypto = Crypto::new();
-        Ok(CliHandler { db, crypto })
+        let keyring =
+            Entry::new("passman", "cached_key").map_err(|_| PassmanError::SessionCacheError)?;
+
+        Ok(CliHandler {
+            db,
+            crypto,
+            keyring,
+        })
     }
 
     pub fn handle_command(&self, cli: Cli) -> Result<(), PassmanError> {
@@ -44,24 +61,16 @@ impl CliHandler {
             return Err(PassmanError::DbAlreadyInitializedError);
         }
 
-        let mut key = None;
+        let mut key = Vec::new();
 
-        // only verify master password if not initializing
         if !matches!(cli.command, Commands::Init) {
-            if is_session_expired(
-                &self
-                    .db
-                    .get_last_access()
-                    .map_err(|_| PassmanError::GetDbError)?,
-            ) {
-                key = self.verify_master_password()?;
-            }
+            key = self.get_cached_key()?;
         }
 
         match cli.command {
             Commands::Init => self.handle_init(),
-            Commands::Add => self.handle_add(key),
-            Commands::List { .. } => self.handle_list(&cli, key),
+            Commands::Add => self.handle_add(&key),
+            Commands::List { .. } => self.handle_list(&cli, &key),
         }
     }
 
@@ -86,17 +95,16 @@ impl CliHandler {
             .map_err(|_| PassmanError::StoreDbError)?;
 
         println!("Master password has been set. Make sure to remember it!");
-        println!("Passman initialized successfully. Run `passman add` to add your first password.");
+        println!("Run `passman add` to add your first password.");
         Ok(())
     }
 
-    fn verify_master_password(&self) -> Result<Option<Vec<u8>>, PassmanError> {
+    fn verify_master_password(&self) -> Result<Vec<u8>, PassmanError> {
         // get salt and hash from db
         // generate hash from input and salt
         // compare hash
         // return ok or error
         // update last access
-        // return derived key
 
         println!("Enter your master password first: ");
         let master_password: String = read_password().map_err(|_| PassmanError::ReadInputError)?;
@@ -116,15 +124,44 @@ impl CliHandler {
             return Err(PassmanError::PasswordMismatchError);
         }
 
-        self.db
-            .update_last_access()
-            .map_err(|_| PassmanError::UpdateDbError)?;
-
+        // derive key and cache it. cached key will be used for all other commands until it expires
+        // more on cache logic in get_cached_key()
         let key = self.crypto.derive_key(&master_password, &salt)?;
-        Ok(Some(key))
+        let cached_key = CachedKey {
+            key: key.clone(),
+            timestamp: Utc::now(),
+        };
+        let cached_key_str =
+            serde_json::to_string(&cached_key).map_err(|_| PassmanError::SessionCacheError)?;
+
+        self.keyring
+            .set_password(&cached_key_str)
+            .map_err(|_| PassmanError::SessionCacheError)?;
+
+        Ok(key)
     }
 
-    fn handle_add(&self, key: Option<Vec<u8>>) -> Result<(), PassmanError> {
+    fn get_cached_key(&self) -> Result<Vec<u8>, PassmanError> {
+        // if cached key exists and is not expired, return it
+        // if cached key is expired, run verify_master_password() which will update cached key
+
+        match self.keyring.get_password() {
+            Ok(cached_key_str) => {
+                let cached_key: CachedKey = serde_json::from_str(&cached_key_str)
+                    .map_err(|_| PassmanError::SessionCacheError)?;
+
+                if !is_session_expired(&cached_key.timestamp) {
+                    return Ok(cached_key.key);
+                }
+            }
+            Err(_) => {}
+        }
+
+        // this will either make new cached key or update timestamp of existing cached key
+        self.verify_master_password()
+    }
+
+    fn handle_add(&self, key: &Vec<u8>) -> Result<(), PassmanError> {
         println!("Website Name: ");
         let website_name: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
         let website_name = website_name.trim().to_lowercase();
@@ -138,7 +175,6 @@ impl CliHandler {
         println!("Password: ");
         let password: String = read_password().map_err(|_| PassmanError::ReadInputError)?;
 
-        let key = key.ok_or(PassmanError::CryptoError)?;
         let (ciphertext, iv) = self.crypto.encrypt_password(&password, &key)?;
         self.db
             .add_password(&website_name, &username, &ciphertext, &iv, &website_url)
@@ -148,15 +184,13 @@ impl CliHandler {
         Ok(())
     }
 
-    fn handle_list(&self, cli: &Cli, key: Option<Vec<u8>>) -> Result<(), PassmanError> {
+    fn handle_list(&self, cli: &Cli, key: &Vec<u8>) -> Result<(), PassmanError> {
         if let Commands::List { website_name } = &cli.command {
             if let Some(website_name) = website_name {
-                let key = key.ok_or(PassmanError::CryptoError)?;
-
                 let (username, ciphertext, iv) = self
                     .db
                     .get_password(&website_name)
-                    .map_err(|_| PassmanError::PasswordNotFoundError)?;
+                    .map_err(|_| PassmanError::WebsiteNotFoundError)?;
                 let password = self.crypto.decrypt_password(&ciphertext, &iv, &key)?;
 
                 println!("Website: {}", website_name);

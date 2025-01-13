@@ -20,6 +20,10 @@ pub enum PassmanError {
     DbNotInitializedError,
     #[error("Passman already initialized. Run `passman` to see options.")]
     DbAlreadyInitializedError,
-    #[error("Password not found")]
-    PasswordNotFoundError,
+    #[error(
+        "Website not found. Please try again or run `passman list` to see all stored websites."
+    )]
+    WebsiteNotFoundError,
+    #[error("Something went wrong with session cache")]
+    SessionCacheError,
 }
