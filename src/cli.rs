@@ -56,7 +56,7 @@ impl CliHandler {
             Commands::Init => self.handle_init(),
             Commands::Add => self.handle_add(&key),
             Commands::List { .. } => self.handle_list(&cli, &key),
-            Commands::Reset => self.handle_reset(&key),
+            Commands::Reset => self.handle_reset(),
             Commands::Export => self.handle_export(),
         }
     }
@@ -117,6 +117,10 @@ impl CliHandler {
     fn handle_add(&self, key: &Vec<u8>) -> Result<(), PassmanError> {
         println!("Website Name: ");
         let website_name: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
+
+        if self.db.check_if_password_exists(&website_name) {
+            return Err(PassmanError::WebsiteAlreadyExistsError);
+        }
 
         println!("Username: ");
         let username: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
@@ -218,7 +222,7 @@ impl CliHandler {
                         let new_username: String =
                             read_line().map_err(|_| PassmanError::ReadInputError)?;
                         self.db
-                            .update_password(website, Some(new_username), None, None)
+                            .update_password(website, Some(&new_username), None, None)
                             .map_err(|_| PassmanError::UpdateDbError)?;
                         println!("Username updated successfully.");
                     }
@@ -228,7 +232,7 @@ impl CliHandler {
                             read_password().map_err(|_| PassmanError::ReadInputError)?;
                         let (ciphertext, iv) = self.crypto.encrypt_password(&new_password, &key)?;
                         self.db
-                            .update_password(website, None, Some(ciphertext), Some(iv))
+                            .update_password(website, None, Some(&ciphertext), Some(&iv))
                             .map_err(|_| PassmanError::UpdateDbError)?;
                         println!("Password updated successfully.");
                     }
@@ -236,10 +240,10 @@ impl CliHandler {
                 }
             }
             3 => {
-                // self.db
-                //     .delete_password(website)
-                //     .map_err(|_| PassmanError::DeleteDbError)?;
-                // println!("Password deleted successfully.");
+                self.db
+                    .delete_password(website)
+                    .map_err(|_| PassmanError::DeleteDbError)?;
+                println!("Password deleted successfully.");
             }
             _ => {}
         }
@@ -293,7 +297,21 @@ impl CliHandler {
         Ok(())
     }
 
-    fn handle_reset(&self, key: &Vec<u8>) -> Result<(), PassmanError> {
+    fn handle_reset(&self) -> Result<(), PassmanError> {
+        println!("Are you sure you want to reset the database? This action is irreversible.");
+        println!("Enter 'reset' to confirm: ");
+        let confirmation: String = read_line().map_err(|_| PassmanError::ReadInputError)?;
+
+        if confirmation != "reset" {
+            return Err(PassmanError::ResetDbError);
+        }
+
+        self.db
+            .reset_database()
+            .map_err(|_| PassmanError::ResetDbError)?;
+
+        println!("Database reset successfully.");
+        println!("Run `passman init` to start over.");
         Ok(())
     }
 

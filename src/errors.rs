@@ -14,6 +14,8 @@ pub enum PassmanError {
     GetDbError,
     #[error("Failed to update database")]
     UpdateDbError,
+    #[error("Failed to delete password from database")]
+    DeleteDbError,
     #[error("Something went wrong with encryption")]
     CryptoError,
     #[error("Database not initialized. Run `passman init` first.")]
@@ -28,4 +30,10 @@ pub enum PassmanError {
     WrongMasterPasswordError,
     #[error("Something went wrong with clipboard operations")]
     ClipboardError,
+    #[error("Failed to reset database")]
+    ResetDbError,
+    #[error(
+        "A password with that website name already exists. Try a different variation if needed."
+    )]
+    WebsiteAlreadyExistsError,
 }

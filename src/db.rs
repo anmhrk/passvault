@@ -30,7 +30,7 @@ impl Database {
             "CREATE TABLE IF NOT EXISTS master_password (
                 id INTEGER PRIMARY KEY,
                 hash TEXT NOT NULL,
-                salt TEXT NOT NULL,
+                salt TEXT NOT NULL
             )",
             [],
         )?;
@@ -50,9 +50,10 @@ impl Database {
 
     pub fn store_master_password(&self, hash: &str, salt: &str) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO master_password (id, hash, salt, last_accessed) VALUES (1, ?, ?, ?)",
-            [hash, salt, &now()],
+            "INSERT INTO master_password (id, hash, salt) VALUES (1, ?, ?)",
+            [hash, salt],
         )?;
+
         Ok(())
     }
 
@@ -62,6 +63,16 @@ impl Database {
             [],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
+    }
+
+    pub fn check_if_password_exists(&self, website_name: &str) -> bool {
+        let result = self.conn.query_row(
+            "SELECT COUNT(*) FROM passwords WHERE website_name = ?",
+            [website_name],
+            |row| row.get::<_, i32>(0),
+        );
+
+        matches!(result, Ok(1))
     }
 
     pub fn add_password(
@@ -79,9 +90,10 @@ impl Database {
                 iv,
                 created_at, 
                 updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ) VALUES (?, ?, ?, ?, ?, ?)",
             [website_name, username, password, iv, &now(), &now()],
         )?;
+
         Ok(())
     }
 
@@ -116,32 +128,32 @@ impl Database {
     pub fn update_password(
         &self,
         website_name: &str,
-        username: Option<String>,
-        password: Option<String>,
-        iv: Option<String>,
+        username: Option<&str>,
+        password: Option<&str>,
+        iv: Option<&str>,
     ) -> Result<()> {
-        let mut query = String::from("UPDATE passwords SET ");
-        let mut params: Vec<Box<dyn ToSql>> = Vec::new();
         let mut set_clauses = Vec::new();
+        let mut params: Vec<Box<dyn ToSql>> = Vec::new();
+
+        set_clauses.push("updated_at = ?");
+        params.push(Box::new(now()));
 
         if let Some(username) = username {
             set_clauses.push("username = ?");
-            params.push(Box::new(username));
+            params.push(Box::new(username.to_string()));
         }
         if let Some(password) = password {
             set_clauses.push("encrypted_password = ?");
-            params.push(Box::new(password));
+            params.push(Box::new(password.to_string()));
         }
         if let Some(iv) = iv {
             set_clauses.push("iv = ?");
-            params.push(Box::new(iv));
+            params.push(Box::new(iv.to_string()));
         }
 
-        let now = now();
-        set_clauses.push("updated_at = ?");
-        params.push(Box::new(now));
-
-        query.push_str(&set_clauses.join(", "));
+        let joined_clauses = set_clauses.join(", ");
+        let mut query = String::from("UPDATE passwords SET ");
+        query.push_str(&joined_clauses);
         query.push_str(" WHERE website_name = ?");
         params.push(Box::new(website_name.to_string()));
 
@@ -150,9 +162,20 @@ impl Database {
         Ok(())
     }
 
-    pub fn delete_password() {}
+    pub fn delete_password(&self, website_name: &str) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM passwords WHERE website_name = ?",
+            [website_name],
+        )?;
 
-    pub fn update_master_password() {}
+        Ok(())
+    }
 
-    pub fn reset_database() {}
+    pub fn reset_database(&self) -> Result<()> {
+        self.conn.execute("DROP TABLE IF EXISTS passwords", [])?;
+        self.conn
+            .execute("DROP TABLE IF EXISTS master_password", [])?;
+
+        Ok(())
+    }
 }
