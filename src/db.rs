@@ -74,36 +74,56 @@ impl Database {
         website_url: &str,
     ) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO passwords (website_name, username, encrypted_password, iv, website_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [website_name, username, password, iv, website_url, &now(), &now()],
+            "INSERT INTO passwords (
+                website_name, 
+                username, 
+                encrypted_password, 
+                iv, 
+                website_url, 
+                created_at, 
+                updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [
+                website_name,
+                username,
+                password,
+                iv,
+                website_url,
+                &now(),
+                &now(),
+            ],
         )?;
         Ok(())
     }
 
-    pub fn list_passwords(&self) -> Result<Vec<String>> {
-        let mut stmt = self.conn.prepare("SELECT website_name FROM passwords")?;
-        let website_names = stmt
-            .query_map([], |row| row.get(0))?
-            .collect::<Result<Vec<String>>>()?;
-        Ok(website_names)
-    }
-
-    pub fn get_password(
+    pub fn list_passwords(
         &self,
-        website_name: &str,
+        website_name: Option<&str>,
     ) -> Result<Vec<(String, String, String, String)>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT website_name, username, encrypted_password, iv 
-             FROM passwords 
-             WHERE LOWER(website_name) LIKE LOWER(?)",
-        )?;
+        if let Some(website_name) = website_name {
+            let mut stmt = self.conn.prepare(
+                "SELECT website_name, username, encrypted_password, iv 
+                FROM passwords 
+                WHERE LOWER(website_name) LIKE LOWER(?)",
+            )?;
 
-        let pattern = format!("%{}%", website_name);
-        let results = stmt.query_map([pattern], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-        })?;
+            let pattern = format!("%{}%", website_name);
+            let results = stmt.query_map([pattern], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })?;
 
-        results.collect()
+            results.collect()
+        } else {
+            let mut stmt = self.conn.prepare(
+                "SELECT website_name, username, encrypted_password, iv 
+                FROM passwords",
+            )?;
+            let results = stmt.query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })?;
+
+            results.collect()
+        }
     }
 
     pub fn update_password() {}

@@ -21,6 +21,9 @@ enum Commands {
     List {
         website_name: Option<String>, // if not provided, list all
     },
+    Copy {
+        website_name: Option<String>, // if not provided, list all
+    },
     // add copy, delete, update, export, reset, update master password
 }
 
@@ -57,6 +60,7 @@ impl CliHandler {
             Commands::Init => self.handle_init(),
             Commands::Add => self.handle_add(&key),
             Commands::List { .. } => self.handle_list(&cli, &key),
+            Commands::Copy { .. } => self.handle_copy(&cli, &key),
         }
     }
 
@@ -140,8 +144,8 @@ impl CliHandler {
             if let Some(website_name) = website_name {
                 let results = self
                     .db
-                    .get_password(&website_name)
-                    .map_err(|_| PassmanError::WebsiteNotFoundError)?;
+                    .list_passwords(Some(&website_name))
+                    .map_err(|_| PassmanError::GetDbError)?;
 
                 if results.is_empty() {
                     return Err(PassmanError::WebsiteNotFoundError);
@@ -167,25 +171,32 @@ impl CliHandler {
             } else {
                 let website_names = self
                     .db
-                    .list_passwords()
+                    .list_passwords(None)
                     .map_err(|_| PassmanError::GetDbError)?;
 
                 if website_names.is_empty() {
                     println!("No websites found. Run `passman add` to add your first website.");
                 } else {
-                    println!("Here are all of your stored websites:");
-                    for website_name in website_names {
-                        println!("{}", website_name);
-                    }
+                    let names: Vec<&String> =
+                        website_names.iter().map(|(name, _, _, _)| name).collect();
+                    let selection = Select::with_theme(&ColorfulTheme::default())
+                        .with_prompt("Here are all of your stored websites. Which one would you like to view?")
+                        .items(&names)
+                        .default(0)
+                        .interact()
+                        .map_err(|_| PassmanError::ReadInputError)?;
 
-                    println!();
-                    println!(
-                        "Run `passman list <website_name>` to get the credentials for a specific website."
-                    );
+                    let (name, username, ciphertext, iv) = &website_names[selection];
+                    let password = self.crypto.decrypt_password(&ciphertext, &iv, &key)?;
+                    display_credentials(name, username, &password);
                 }
             }
         }
 
+        Ok(())
+    }
+
+    fn handle_copy(&self, cli: &Cli, key: &Vec<u8>) -> Result<(), PassmanError> {
         Ok(())
     }
 }
