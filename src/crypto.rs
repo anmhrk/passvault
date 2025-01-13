@@ -8,7 +8,7 @@ use argon2::{
 };
 use base64::prelude::*;
 
-use crate::errors::PassmanError;
+use crate::errors::PassvaultError;
 use crate::utils::get_salt_string;
 
 pub struct Crypto {
@@ -22,12 +22,12 @@ impl Crypto {
         }
     }
 
-    pub fn hash_password(&self, password: &str) -> Result<(String, String), PassmanError> {
+    pub fn hash_password(&self, password: &str) -> Result<(String, String), PassvaultError> {
         let salt = SaltString::generate(&mut OsRng);
         let password_hash = self
             .argon2
             .hash_password(password.as_bytes(), &salt)
-            .map_err(|_| PassmanError::CryptoError)?;
+            .map_err(|_| PassvaultError::CryptoError)?;
 
         Ok((password_hash.to_string(), salt.to_string()))
     }
@@ -36,7 +36,7 @@ impl Crypto {
         &self,
         password: &str,
         key: &[u8],
-    ) -> Result<(String, String), PassmanError> {
+    ) -> Result<(String, String), PassvaultError> {
         // key is derived from master password
         // generate random iv
         // init cipher
@@ -49,7 +49,7 @@ impl Crypto {
         let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
         let ciphertext = cipher
             .encrypt(Nonce::from_slice(&iv), password.as_bytes())
-            .map_err(|_| PassmanError::CryptoError)?;
+            .map_err(|_| PassvaultError::CryptoError)?;
 
         Ok((
             BASE64_STANDARD.encode(ciphertext),
@@ -62,7 +62,7 @@ impl Crypto {
         ciphertext: &str,
         iv: &str,
         key: &[u8],
-    ) -> Result<String, PassmanError> {
+    ) -> Result<String, PassvaultError> {
         // decode ciphertext and iv
         // init cipher
         // decrypt password from ciphertext
@@ -71,20 +71,20 @@ impl Crypto {
 
         let ciphertext = BASE64_STANDARD
             .decode(ciphertext)
-            .map_err(|_| PassmanError::CryptoError)?;
+            .map_err(|_| PassvaultError::CryptoError)?;
         let iv = BASE64_STANDARD
             .decode(iv)
-            .map_err(|_| PassmanError::CryptoError)?;
+            .map_err(|_| PassvaultError::CryptoError)?;
 
         let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
         let password = cipher
             .decrypt(Nonce::from_slice(&iv), ciphertext.as_ref())
-            .map_err(|_| PassmanError::CryptoError)?;
+            .map_err(|_| PassvaultError::CryptoError)?;
 
-        Ok(String::from_utf8(password).map_err(|_| PassmanError::CryptoError)?)
+        Ok(String::from_utf8(password).map_err(|_| PassvaultError::CryptoError)?)
     }
 
-    pub fn derive_key(&self, master_password: &str, salt: &str) -> Result<Vec<u8>, PassmanError> {
+    pub fn derive_key(&self, master_password: &str, salt: &str) -> Result<Vec<u8>, PassvaultError> {
         // get salt from db
         // convert to salt string
         // hash master password with salt
@@ -98,7 +98,7 @@ impl Crypto {
                 salt.as_str().as_bytes(),
                 &mut key,
             )
-            .map_err(|_| PassmanError::CryptoError)?;
+            .map_err(|_| PassvaultError::CryptoError)?;
 
         Ok(key.to_vec())
     }

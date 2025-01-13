@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum PassmanError {
+pub enum PassvaultError {
     #[error("Failed to read input")]
     ReadInputError,
     #[error("Passwords do not match")]
@@ -18,12 +18,12 @@ pub enum PassmanError {
     DeleteDbError,
     #[error("Something went wrong with encryption")]
     CryptoError,
-    #[error("Database not initialized. Run `passman init` first.")]
+    #[error("Database not initialized. Run `passvault init` first.")]
     DbNotInitializedError,
-    #[error("Passman already initialized. Run `passman` to see options.")]
+    #[error("Passvault already initialized. Run `passvault` to see options.")]
     DbAlreadyInitializedError,
     #[error(
-        "Website not found. Please try again or run `passman list` to see all stored websites."
+        "Website not found. Please try again or run `passvault list` to see all stored websites."
     )]
     WebsiteNotFoundError,
     #[error("Wrong master password")]
