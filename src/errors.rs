@@ -24,6 +24,6 @@ pub enum PassmanError {
         "Website not found. Please try again or run `passman list` to see all stored websites."
     )]
     WebsiteNotFoundError,
-    #[error("Something went wrong with session cache")]
-    SessionCacheError,
+    #[error("Wrong master password")]
+    WrongMasterPasswordError,
 }
