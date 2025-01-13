@@ -26,4 +26,6 @@ pub enum PassmanError {
     WebsiteNotFoundError,
     #[error("Wrong master password")]
     WrongMasterPasswordError,
+    #[error("Failed to copy to clipboard")]
+    ClipboardError,
 }

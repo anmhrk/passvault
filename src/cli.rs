@@ -1,3 +1,4 @@
+use arboard::Clipboard;
 use argon2::password_hash::PasswordHasher;
 use clap::{Parser, Subcommand};
 use dialoguer::{theme::ColorfulTheme, Select};
@@ -6,7 +7,7 @@ use rpassword::read_password;
 use crate::crypto::Crypto;
 use crate::db::Database;
 use crate::errors::PassmanError;
-use crate::utils::{display_credentials, get_salt_string, read_line};
+use crate::utils::{get_salt_string, read_line};
 
 #[derive(Parser)]
 pub struct Cli {
@@ -18,15 +19,10 @@ pub struct Cli {
 enum Commands {
     Init,
     Add,
-    List {
-        website_name: Option<String>, // if not provided, list all
-    },
-    Copy {
-        website_name: Option<String>, // if not provided, list all
-    },
-    // add copy, delete, update, export, reset, update master password
+    List { website_name: Option<String> },
+    Reset,
+    Export,
 }
-
 pub struct CliHandler {
     db: Database,
     crypto: Crypto,
@@ -60,7 +56,8 @@ impl CliHandler {
             Commands::Init => self.handle_init(),
             Commands::Add => self.handle_add(&key),
             Commands::List { .. } => self.handle_list(&cli, &key),
-            Commands::Copy { .. } => self.handle_copy(&cli, &key),
+            Commands::Reset => self.handle_reset(&key),
+            Commands::Export => self.handle_export(&key),
         }
     }
 
@@ -139,6 +136,87 @@ impl CliHandler {
         Ok(())
     }
 
+    fn display_website_names(
+        &self,
+        website_names: Vec<(String, String, String, String)>,
+        key: &Vec<u8>,
+        prompt: &str,
+    ) -> Result<(String, String, String), PassmanError> {
+        let names: Vec<&String> = website_names.iter().map(|(name, _, _, _)| name).collect();
+        let selection = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt(prompt)
+            .items(&names)
+            .default(0)
+            .interact()
+            .map_err(|_| PassmanError::ReadInputError)?;
+
+        let (name, username, ciphertext, iv) = &website_names[selection];
+        let password = self.crypto.decrypt_password(&ciphertext, &iv, &key)?;
+        Ok((name.clone(), username.clone(), password))
+    }
+
+    fn handle_list_options(
+        &self,
+        website: &str,
+        username: &str,
+        password: &str,
+        key: &Vec<u8>,
+    ) -> Result<(), PassmanError> {
+        let options = vec![
+            "Display credentials",
+            "Copy password to clipboard",
+            "Update",
+            "Delete",
+            "Exit",
+        ];
+        let selection = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("What would you like to do?")
+            .items(&options)
+            .default(0)
+            .interact()
+            .map_err(|_| PassmanError::ReadInputError)?;
+
+        match selection {
+            0 => {
+                println!("Website: {}", website);
+                println!("Username: {}", username);
+                println!("Password: {}", password);
+            }
+            1 => {
+                let mut clipboard = Clipboard::new().map_err(|_| PassmanError::ClipboardError)?;
+                clipboard
+                    .set_text(password)
+                    .map_err(|_| PassmanError::ClipboardError)?;
+
+                println!("Password copied to clipboard.");
+                println!("Press enter to clear clipboard.");
+                read_line().map_err(|_| PassmanError::ReadInputError)?;
+
+                if let Ok(current_text) = clipboard.get_text() {
+                    if current_text == password {
+                        clipboard
+                            .set_text("")
+                            .map_err(|_| PassmanError::ClipboardError)?;
+                        println!("Clipboard cleared.");
+                    } else {
+                        println!("Clipboard content has changed. Not clearing.");
+                    }
+                } else {
+                    return Err(PassmanError::ClipboardError);
+                }
+            }
+            2 => {
+                // update
+            }
+            3 => {
+                // delete
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
+
     fn handle_list(&self, cli: &Cli, key: &Vec<u8>) -> Result<(), PassmanError> {
         if let Commands::List { website_name } = &cli.command {
             if let Some(website_name) = website_name {
@@ -154,19 +232,14 @@ impl CliHandler {
                 if results.len() == 1 {
                     let (website, username, ciphertext, iv) = results.first().unwrap();
                     let password = self.crypto.decrypt_password(&ciphertext, &iv, &key)?;
-                    display_credentials(&website, &username, &password);
+                    self.handle_list_options(&website, &username, &password, key)?;
                 } else {
-                    let names: Vec<&String> = results.iter().map(|(name, _, _, _)| name).collect();
-                    let selection = Select::with_theme(&ColorfulTheme::default())
-                        .with_prompt("Multiple matches found. Select one:")
-                        .items(&names)
-                        .default(0)
-                        .interact()
-                        .map_err(|_| PassmanError::ReadInputError)?;
-
-                    let (name, username, ciphertext, iv) = &results[selection];
-                    let password = self.crypto.decrypt_password(&ciphertext, &iv, &key)?;
-                    display_credentials(name, username, &password);
+                    let (name, username, password) = self.display_website_names(
+                        results,
+                        key,
+                        "Multiple matches found. Select one:",
+                    )?;
+                    self.handle_list_options(&name, &username, &password, key)?;
                 }
             } else {
                 let website_names = self
@@ -177,18 +250,12 @@ impl CliHandler {
                 if website_names.is_empty() {
                     println!("No websites found. Run `passman add` to add your first website.");
                 } else {
-                    let names: Vec<&String> =
-                        website_names.iter().map(|(name, _, _, _)| name).collect();
-                    let selection = Select::with_theme(&ColorfulTheme::default())
-                        .with_prompt("Here are all of your stored websites. Which one would you like to view?")
-                        .items(&names)
-                        .default(0)
-                        .interact()
-                        .map_err(|_| PassmanError::ReadInputError)?;
-
-                    let (name, username, ciphertext, iv) = &website_names[selection];
-                    let password = self.crypto.decrypt_password(&ciphertext, &iv, &key)?;
-                    display_credentials(name, username, &password);
+                    let (name, username, password) = self.display_website_names(
+                        website_names,
+                        key,
+                        "Here are all of your stored websites. Select one:",
+                    )?;
+                    self.handle_list_options(&name, &username, &password, key)?;
                 }
             }
         }
@@ -196,7 +263,11 @@ impl CliHandler {
         Ok(())
     }
 
-    fn handle_copy(&self, cli: &Cli, key: &Vec<u8>) -> Result<(), PassmanError> {
+    fn handle_reset(&self, key: &Vec<u8>) -> Result<(), PassmanError> {
+        Ok(())
+    }
+
+    fn handle_export(&self, key: &Vec<u8>) -> Result<(), PassmanError> {
         Ok(())
     }
 }
