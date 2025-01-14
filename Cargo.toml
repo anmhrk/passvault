@@ -2,6 +2,10 @@
 name = "passvault"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/anmhrk/passvault"
+description = "A minimal, secure & local CLI based password manager"
+license = "MIT"
+readme = "README.md"
 
 [dependencies]
 aes-gcm = "0.10.3"
