@@ -5,6 +5,7 @@ use csv::Writer;
 use dialoguer::{theme::ColorfulTheme, Select};
 use rpassword::read_password;
 use std::fs::File;
+use std::path::PathBuf;
 
 use crate::crypto::Crypto;
 use crate::db::Database;
@@ -31,7 +32,7 @@ pub struct CliHandler {
 }
 
 impl CliHandler {
-    pub fn new(db_path: &str) -> Result<Self, PassvaultError> {
+    pub fn new(db_path: &PathBuf) -> Result<Self, PassvaultError> {
         let db = Database::new(db_path).map_err(|_| PassvaultError::InitDbError)?;
         let crypto = Crypto::new();
 
