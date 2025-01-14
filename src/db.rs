@@ -1,11 +1,12 @@
 use rusqlite::{types::ToSql, Connection, Result};
+use std::path::PathBuf;
 
 pub struct Database {
     conn: Connection,
 }
 
 impl Database {
-    pub fn new(path: &str) -> Result<Self> {
+    pub fn new(path: &PathBuf) -> Result<Self> {
         let conn = Connection::open(path)?;
         Ok(Database { conn })
     }

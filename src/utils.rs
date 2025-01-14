@@ -1,5 +1,7 @@
 use argon2::password_hash::SaltString;
+use dirs::home_dir;
 use std::io;
+use std::path::PathBuf;
 
 use crate::errors::PassvaultError;
 
@@ -13,4 +15,12 @@ pub fn read_line() -> Result<String, PassvaultError> {
         .read_line(&mut input)
         .map_err(|_| PassvaultError::ReadInputError)?;
     Ok(input.trim().to_string())
+}
+
+pub fn get_db_path() -> Result<PathBuf, PassvaultError> {
+    let mut path = home_dir().expect("Failed to get home directory");
+    path.push(".passvault");
+    std::fs::create_dir_all(&path).expect("Failed to create directory");
+    path.push("passvault.db");
+    Ok(path)
 }
