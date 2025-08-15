@@ -1,21 +1,6 @@
 [package]
 name = "passvault"
 version = "0.1.0"
-edition = "2021"
-repository = "https://github.com/anmhrk/passvault"
-description = "A minimal, secure & local CLI based password manager"
-license = "MIT"
-readme = "README.md"
+edition = "2024"
 
 [dependencies]
-aes-gcm = "0.10.3"
-arboard = "3.4.1"
-argon2 = "0.5.3"
-base64 = "0.22.1"
-clap = { version = "4.5.26", features = ["derive"] }
-csv = "1.3.1"
-dialoguer = "0.11.0"
-dirs = "6.0.0"
-rpassword = "7.3.1"
-rusqlite = { version = "0.32.1", features = ["bundled"] }
-thiserror = "2.0.11"
