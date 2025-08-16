@@ -25,31 +25,38 @@ impl PasswordVault {
         })
     }
 
+    pub fn is_initialized(&self) -> Result<bool> {
+        self.db.has_master_password()
+    }
+
+    pub fn initialize(&mut self) -> Result<()> {
+        if self.db.has_master_password()? {
+            return Err(anyhow::anyhow!("Passvault is already initialized"));
+        }
+
+        println!("Setting up your master password...");
+        let new_master_password = prompt_password()?;
+        let hasher = PasswordHasher::new();
+        let (hash, salt) = hasher.hash_password(&new_master_password)?;
+        self.db.set_master_password(&hash, &salt)?;
+        println!("Master password created successfully!");
+        println!("Passvault has been initialized.");
+        Ok(())
+    }
+
     pub fn authenticate(&mut self) -> Result<bool> {
-        if !self.db.has_master_password()? {
-            // Create a new master password
-            println!("No master password set. Please create one.");
-            let new_master_password = prompt_password()?;
+        println!("Enter your master password:");
+        let master_password = prompt_password()?;
+        if let Some((stored_hash, salt)) = self.db.get_master_password_hash()? {
             let hasher = PasswordHasher::new();
-            let (hash, salt) = hasher.hash_password(&new_master_password)?;
-            self.db.set_master_password(&hash, &salt)?;
-            println!("Master password created successfully!");
-            Ok(true)
-        } else {
-            // Prompt for master password
-            println!("Enter your master password:");
-            let master_password = prompt_password()?;
-            if let Some((stored_hash, salt)) = self.db.get_master_password_hash()? {
-                let hasher = PasswordHasher::new();
-                if hasher.verify_password(&master_password, &stored_hash)? {
-                    self.crypto = Some(PasswordCrypto::new(&master_password, &salt)?);
-                    Ok(true)
-                } else {
-                    Ok(false)
-                }
+            if hasher.verify_password(&master_password, &stored_hash)? {
+                self.crypto = Some(PasswordCrypto::new(&master_password, &salt)?);
+                Ok(true)
             } else {
-                Err(anyhow::anyhow!("Master password verification failed"))
+                Ok(false)
             }
+        } else {
+            Err(anyhow::anyhow!("Master password verification failed"))
         }
     }
 
