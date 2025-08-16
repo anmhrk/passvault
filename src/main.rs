@@ -1,3 +1,130 @@
-fn main() {
-    println!("Hello, world!");
+mod cli;
+mod commands;
+mod crypto;
+mod db;
+
+use anyhow::Result;
+use arboard::Clipboard;
+use clap::Parser;
+use cli::{ Args, Commands };
+use commands::{ PasswordEntry, PasswordVault, prompt_input, prompt_password };
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+
+    let mut vault = PasswordVault::new()?;
+
+    if !vault.authenticate()? {
+        eprintln!("Invalid master password!");
+        std::process::exit(1);
+    }
+
+    match args.command {
+        Commands::Init => {
+            println!("Initializing password vault...");
+        }
+
+        Commands::List => {
+            let entries = vault.list()?;
+            if entries.is_empty() {
+                println!("No password entries found.");
+            } else {
+                println!("Stored password entries:");
+                for entry in entries {
+                    println!(
+                        "  {} ({})",
+                        entry.name,
+                        entry.username.as_deref().unwrap_or("no username")
+                    );
+                }
+            }
+
+            // Make this an interactive list where you can browse move up and down and select an entry
+            // to view the password. Also add search and filter capabilities.
+        }
+
+        Commands::Get { name, copy } => {
+            if let Some(entry) = vault.get(&name)? {
+                println!("Name: {}", entry.name);
+                if let Some(username) = &entry.username {
+                    println!("Username: {}", username);
+                }
+                println!("Password: {}", entry.password);
+
+                if copy {
+                    let mut clipboard = Clipboard::new()?;
+                    clipboard.set_text(&entry.password)?;
+                    println!("Password copied to clipboard.");
+                }
+            } else {
+                println!("Password entry '{}' not found.", name);
+            }
+        }
+
+        Commands::Add { name, username, password } => {
+            let username = if let Some(u) = username {
+                Some(u)
+            } else {
+                let input = prompt_input("Username (optional, press Enter to skip)")?;
+                if input.is_empty() {
+                    None
+                } else {
+                    Some(input)
+                }
+            };
+
+            let password = if let Some(p) = password { p } else { prompt_password()? };
+
+            let entry = PasswordEntry {
+                name: name.clone(),
+                username,
+                password,
+            };
+
+            vault.add(entry)?;
+            println!("Password entry '{}' added successfully.", name);
+        }
+
+        Commands::Update { name, username, password } => {
+            let password = if password.is_some() {
+                password
+            } else {
+                println!("Enter new password (or press Ctrl+C to skip):");
+                Some(prompt_password()?)
+            };
+
+            if vault.update(&name, username, password)? {
+                println!("Password entry '{}' updated successfully.", name);
+            } else {
+                println!("Password entry '{}' not found.", name);
+            }
+        }
+
+        Commands::Delete { name } => {
+            if vault.delete(&name)? {
+                println!("Password entry '{}' deleted successfully.", name);
+            } else {
+                println!("Password entry '{}' not found.", name);
+            }
+        }
+
+        Commands::Export { output, format } => {
+            vault.export(&output, &format)?;
+            println!("Passwords exported to '{}' in {} format.", output, format);
+        }
+
+        Commands::ChangeMasterPassword => {
+            println!("Changing master password...");
+        }
+
+        Commands::Reset => {
+            println!("Resetting database...");
+        }
+
+        Commands::Audit => {
+            println!("Conducting security audit...");
+        }
+    }
+
+    Ok(())
 }

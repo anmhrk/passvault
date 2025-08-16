@@ -1,0 +1,173 @@
+use anyhow::{ Result };
+use serde::{ Deserialize, Serialize };
+use std::io::{ self, Write };
+use crate::db::Database;
+use crate::crypto::{ PasswordCrypto, PasswordHasher };
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PasswordEntry {
+    pub name: String,
+    pub username: Option<String>,
+    pub password: String,
+}
+
+pub struct PasswordVault {
+    db: Database,
+    crypto: Option<PasswordCrypto>,
+}
+
+impl PasswordVault {
+    pub fn new() -> Result<Self> {
+        let db = Database::new()?;
+        Ok(Self {
+            db,
+            crypto: None,
+        })
+    }
+
+    pub fn authenticate(&mut self) -> Result<bool> {
+        if !self.db.has_master_password()? {
+            // Create a new master password
+            println!("No master password set. Please create one.");
+            let new_master_password = prompt_password()?;
+            let hasher = PasswordHasher::new();
+            let (hash, salt) = hasher.hash_password(&new_master_password)?;
+            self.db.set_master_password(&hash, &salt)?;
+            println!("Master password created successfully!");
+            Ok(true)
+        } else {
+            // Prompt for master password
+            println!("Enter your master password:");
+            let master_password = prompt_password()?;
+            if let Some((stored_hash, salt)) = self.db.get_master_password_hash()? {
+                let hasher = PasswordHasher::new();
+                if hasher.verify_password(&master_password, &stored_hash)? {
+                    self.crypto = Some(PasswordCrypto::new(&master_password, &salt)?);
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            } else {
+                Err(anyhow::anyhow!("Master password verification failed"))
+            }
+        }
+    }
+
+    pub fn list(&self) -> Result<Vec<PasswordEntry>> {
+        let crypto = self.crypto.as_ref().ok_or_else(|| anyhow::anyhow!("Not authenticated"))?;
+        let db_entries = self.db.list_password_entries()?;
+
+        let mut entries = Vec::new();
+        for db_entry in db_entries {
+            let decrypted_password = crypto.decrypt(&db_entry.encrypted_password, &db_entry.nonce)?;
+            entries.push(PasswordEntry {
+                name: db_entry.name,
+                username: db_entry.username,
+                password: decrypted_password,
+            });
+        }
+
+        Ok(entries)
+    }
+
+    pub fn get(&self, name: &str) -> Result<Option<PasswordEntry>> {
+        let crypto = self.crypto.as_ref().ok_or_else(|| anyhow::anyhow!("Not authenticated"))?;
+
+        if let Some(db_entry) = self.db.get_password_entry(name)? {
+            let decrypted_password = crypto.decrypt(&db_entry.encrypted_password, &db_entry.nonce)?;
+            Ok(
+                Some(PasswordEntry {
+                    name: db_entry.name,
+                    username: db_entry.username,
+                    password: decrypted_password,
+                })
+            )
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn add(&self, entry: PasswordEntry) -> Result<()> {
+        let crypto = self.crypto.as_ref().ok_or_else(|| anyhow::anyhow!("Not authenticated"))?;
+
+        let (encrypted_password, nonce) = crypto.encrypt(&entry.password)?;
+        self.db.insert_password_entry(
+            &entry.name,
+            entry.username.as_deref(),
+            &encrypted_password,
+            None,
+            &nonce
+        )?;
+
+        Ok(())
+    }
+
+    pub fn update(
+        &self,
+        name: &str,
+        username: Option<String>,
+        password: Option<String>
+    ) -> Result<bool> {
+        let crypto = self.crypto.as_ref().ok_or_else(|| anyhow::anyhow!("Not authenticated"))?;
+
+        let (encrypted_password, nonce) = if let Some(ref pwd) = password {
+            let (enc, n) = crypto.encrypt(pwd)?;
+            (Some(enc), Some(n))
+        } else {
+            (None, None)
+        };
+
+        self.db.update_password_entry(
+            name,
+            username.as_deref(),
+            encrypted_password.as_deref(),
+            None,
+            nonce.as_deref()
+        )
+    }
+
+    pub fn delete(&self, name: &str) -> Result<bool> {
+        self.db.delete_password_entry(name)
+    }
+
+    pub fn export(&self, output_path: &str, format: &str) -> Result<()> {
+        let entries = self.list()?;
+
+        match format.to_lowercase().as_str() {
+            "json" => {
+                let content = serde_json::to_string_pretty(&entries)?;
+                std::fs::write(output_path, content)?;
+            }
+            "csv" => {
+                let mut writer = csv::Writer::from_path(output_path)?;
+                writer.write_record(&["name", "username", "password"])?;
+
+                for entry in entries {
+                    writer.write_record(
+                        &[&entry.name, entry.username.as_deref().unwrap_or(""), &entry.password]
+                    )?;
+                }
+                writer.flush()?;
+            }
+            _ => {
+                return Err(anyhow::anyhow!("Unsupported format: {}", format));
+            }
+        }
+        Ok(())
+    }
+}
+
+pub fn prompt_password() -> Result<String> {
+    print!("Enter password (input hidden): ");
+    io::stdout().flush()?;
+    let password = rpassword::read_password()?;
+    Ok(password)
+}
+
+pub fn prompt_input(prompt: &str) -> Result<String> {
+    print!("{}: ", prompt);
+    io::stdout().flush()?;
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    Ok(input.trim().to_string())
+}
