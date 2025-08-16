@@ -79,6 +79,14 @@ impl Database {
         Ok(())
     }
 
+    pub fn update_master_password(&self, password_hash: &str, salt: &str) -> Result<()> {
+        self.conn.execute("UPDATE master_password SET password_hash = ?1, salt = ?2", [
+            password_hash,
+            salt,
+        ])?;
+        Ok(())
+    }
+
     pub fn get_master_password_hash(&self) -> Result<Option<(String, String)>> {
         let mut stmt = self.conn.prepare(
             "SELECT password_hash, salt FROM master_password LIMIT 1"

@@ -64,7 +64,7 @@ fn main() -> Result<()> {
                         }
                     }
 
-                    // Make this an interactive list where you can browse move up and down and select an entry
+                    // TODO: Make this an interactive list where you can browse move up and down and select an entry
                     // to view the password. Also add search and filter capabilities.
                 }
 
@@ -98,7 +98,11 @@ fn main() -> Result<()> {
                         }
                     };
 
-                    let password = if let Some(p) = password { p } else { prompt_password()? };
+                    let password = if let Some(p) = password {
+                        p
+                    } else {
+                        prompt_password("Password")?
+                    };
 
                     let entry = PasswordEntry {
                         name: name.clone(),
@@ -114,8 +118,7 @@ fn main() -> Result<()> {
                     let password = if password.is_some() {
                         password
                     } else {
-                        println!("Enter new password (or press Ctrl+C to skip):");
-                        Some(prompt_password()?)
+                        Some(prompt_password("Enter new password")?)
                     };
 
                     if vault.update(&name, username, password)? {
@@ -139,15 +142,20 @@ fn main() -> Result<()> {
                 }
 
                 Commands::ChangeMasterPassword => {
-                    println!("Changing master password...");
+                    let new_master_password = prompt_password("Enter new master password")?;
+                    vault.change_master_password(&new_master_password)?;
+                    println!("Master password changed successfully!");
                 }
 
                 Commands::Reset => {
-                    println!("Resetting database...");
-                }
-
-                Commands::Audit => {
-                    println!("Conducting security audit...");
+                    let input = prompt_input(
+                        "Are you sure you want to reset Passvault and delete all your passwords? This action cannot be undone. (y/n)"
+                    )?;
+                    if input == "y" {
+                        vault.reset()?;
+                    } else {
+                        println!("Reset cancelled.");
+                    }
                 }
             }
         }

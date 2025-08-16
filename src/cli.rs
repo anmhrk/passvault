@@ -66,6 +66,4 @@ pub enum Commands {
     ChangeMasterPassword,
     // Reset the database
     Reset,
-    // Conduct a security audit across all stored passwords
-    Audit,
 }

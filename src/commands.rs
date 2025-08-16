@@ -1,6 +1,6 @@
 use anyhow::{ Result };
 use serde::{ Deserialize, Serialize };
-use std::io::{ self, Write };
+use std::{ fs, io::{ self, Write } };
 use crate::db::Database;
 use crate::crypto::{ PasswordCrypto, PasswordHasher };
 
@@ -10,7 +10,6 @@ pub struct PasswordEntry {
     pub username: Option<String>,
     pub password: String,
 }
-
 pub struct PasswordVault {
     db: Database,
     crypto: Option<PasswordCrypto>,
@@ -35,7 +34,7 @@ impl PasswordVault {
         }
 
         println!("Setting up your master password...");
-        let new_master_password = prompt_password()?;
+        let new_master_password = prompt_password("Enter your master password")?;
         let hasher = PasswordHasher::new();
         let (hash, salt) = hasher.hash_password(&new_master_password)?;
         self.db.set_master_password(&hash, &salt)?;
@@ -45,8 +44,7 @@ impl PasswordVault {
     }
 
     pub fn authenticate(&mut self) -> Result<bool> {
-        println!("Enter your master password:");
-        let master_password = prompt_password()?;
+        let master_password = prompt_password("Enter your master password")?;
         if let Some((stored_hash, salt)) = self.db.get_master_password_hash()? {
             let hasher = PasswordHasher::new();
             if hasher.verify_password(&master_password, &stored_hash)? {
@@ -162,10 +160,55 @@ impl PasswordVault {
         }
         Ok(())
     }
+
+    pub fn change_master_password(&mut self, new_master_password: &str) -> Result<()> {
+        // Get all password entries first (while we still have access to decrypt them)
+        let entries = self.list()?;
+
+        // Hash the new master password and update the database
+        let hasher = PasswordHasher::new();
+        let (new_hash, new_salt) = hasher.hash_password(new_master_password)?;
+        self.db.update_master_password(&new_hash, &new_salt)?;
+
+        // Create new crypto instance with the new master password
+        let new_crypto = PasswordCrypto::new(new_master_password, &new_salt)?;
+
+        // Re-encrypt all existing passwords with the new master password
+        for entry in entries {
+            let (encrypted_password, nonce) = new_crypto.encrypt(&entry.password)?;
+            self.db.insert_password_entry(
+                &entry.name,
+                entry.username.as_deref(),
+                &encrypted_password,
+                None,
+                &nonce
+            )?;
+        }
+
+        self.crypto = Some(new_crypto);
+
+        Ok(())
+    }
+
+    pub fn reset(&self) -> Result<()> {
+        let home_dir = dirs
+            ::home_dir()
+            .ok_or_else(|| anyhow::anyhow!("Unable to find home directory"))?;
+        let vault_dir = home_dir.join(".passvault");
+
+        if vault_dir.exists() {
+            fs::remove_dir_all(&vault_dir)?;
+            println!("Passvault database has been reset. Run 'passvault init' to reinitialize.");
+        } else {
+            return Err(anyhow::anyhow!("Passvault directory not found."));
+        }
+
+        Ok(())
+    }
 }
 
-pub fn prompt_password() -> Result<String> {
-    print!("Enter password (input hidden): ");
+pub fn prompt_password(prompt: &str) -> Result<String> {
+    print!("{}: ", prompt);
     io::stdout().flush()?;
     let password = rpassword::read_password()?;
     Ok(password)
