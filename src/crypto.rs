@@ -61,7 +61,7 @@ impl PasswordCrypto {
             .map_err(|e| anyhow::anyhow!("Encryption failed: {}", e))?;
 
         let encrypted_base64 = BASE64_STANDARD.encode(&ciphertext);
-        let nonce_base64 = BASE64_STANDARD.encode(&nonce);
+        let nonce_base64 = BASE64_STANDARD.encode(nonce);
 
         Ok((encrypted_base64, nonce_base64))
     }

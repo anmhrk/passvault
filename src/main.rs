@@ -2,12 +2,14 @@ mod cli;
 mod commands;
 mod crypto;
 mod db;
+mod utils;
 
 use anyhow::Result;
 use arboard::Clipboard;
 use clap::Parser;
 use cli::{ Args, Commands };
-use commands::{ PasswordEntry, PasswordVault, prompt_input, prompt_password };
+use commands::{ PasswordEntry, PasswordVault };
+use utils::{ prompt_input, prompt_password };
 
 fn main() -> Result<()> {
     let args = Args::parse();
@@ -63,9 +65,6 @@ fn main() -> Result<()> {
                             );
                         }
                     }
-
-                    // TODO: Make this an interactive list where you can browse move up and down and select an entry
-                    // to view the password. Also add search and filter capabilities.
                 }
 
                 Commands::Get { name, copy } => {

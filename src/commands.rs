@@ -1,8 +1,9 @@
 use anyhow::{ Result };
 use serde::{ Deserialize, Serialize };
-use std::{ fs, io::{ self, Write } };
+use std::fs;
 use crate::db::Database;
 use crate::crypto::{ PasswordCrypto, PasswordHasher };
+use crate::utils::{ prompt_password };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PasswordEntry {
@@ -145,12 +146,14 @@ impl PasswordVault {
             }
             "csv" => {
                 let mut writer = csv::Writer::from_path(output_path)?;
-                writer.write_record(&["name", "username", "password"])?;
+                writer.write_record(["name", "username", "password"])?;
 
                 for entry in entries {
-                    writer.write_record(
-                        &[&entry.name, entry.username.as_deref().unwrap_or(""), &entry.password]
-                    )?;
+                    writer.write_record([
+                        &entry.name,
+                        entry.username.as_deref().unwrap_or(""),
+                        &entry.password,
+                    ])?;
                 }
                 writer.flush()?;
             }
@@ -205,19 +208,4 @@ impl PasswordVault {
 
         Ok(())
     }
-}
-
-pub fn prompt_password(prompt: &str) -> Result<String> {
-    print!("{}: ", prompt);
-    io::stdout().flush()?;
-    let password = rpassword::read_password()?;
-    Ok(password)
-}
-
-pub fn prompt_input(prompt: &str) -> Result<String> {
-    print!("{}: ", prompt);
-    io::stdout().flush()?;
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-    Ok(input.trim().to_string())
 }
