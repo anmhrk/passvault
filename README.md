@@ -18,14 +18,14 @@ Passvault is a minimal and secure password manager written in Rust. All password
 
 ## Commands available
 
-| Command | Description |
-|---------|-------------|
-| `passvault init` | Initialize the password vault |
-| `passvault list` | List all stored passwords |
-| `passvault get <name>` | Get a specific password entry (optional --copy flag to copy to clipboard) |
-| `passvault add <name> <username> <password>` | Add a new password entry |
-| `passvault update <name> <username> <password>` | Update an existing password entry |
-| `passvault delete <name>` | Delete a password entry |
-| `passvault export <output> <format>` | Export passwords to a file |
-| `passvault change-master-password` | Change the master password |
-| `passvault reset` | Reset the database |
+```bash
+passvault init                                  # Initialize the password vault
+passvault list                                  # List all stored passwords
+passvault get <name>                            # Get a specific password entry (optional -c flag to copy to clipboard)
+passvault add <name> <username> <password>      # Add a new password entry
+passvault update <name> <username> <password>   # Update an existing password entry
+passvault delete <name>                         # Delete a password entry
+passvault export <output> <format>              # Export passwords to a file
+passvault change-master-password                # Change the master password
+passvault reset                                 # Reset the database
+```
