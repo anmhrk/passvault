@@ -4,17 +4,17 @@ Passvault is a minimal and secure CLI based password manager written in Rust. Al
 
 ## Key libraries
 
-- Argon2 for password hashing and verification
-- AES-GCM for password encryption and decryption using master password as key
-- rpassword for secure password input
-- clap library for the CLI
-- rusqlite to interact with the SQLite database
+- [Argon2](https://crates.io/crates/argon2) for password hashing and verification
+- [AES-GCM](https://crates.io/crates/aes-gcm) for password encryption and decryption using master password as key
+- [rpassword](https://crates.io/crates/rpassword) for secure password input
+- [clap](https://crates.io/crates/clap) for the CLI
+- [rusqlite](https://crates.io/crates/rusqlite) to interact with the SQLite database
 
 ## Usage
 
 ### Pre-requisites
 
-- Make sure you have [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) installed.
+Make sure you have [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) installed.
 
 ### Installation
 
