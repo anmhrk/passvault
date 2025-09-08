@@ -1,7 +1,0 @@
-{
-  "editor.defaultFormatter": "rust-lang.rust-analyzer",
-  "editor.inlayHints.enabled": "offUnlessPressed",
-  "[rust]": {
-    "editor.defaultFormatter": "jinxdash.prettier-rust"
-  }
-}
