@@ -2,7 +2,7 @@
 
 Passvault is a minimal and secure CLI based password manager written in Rust. All passwords are securely encrypted and stored locally in a SQLite database.
 
-## Key libraries
+## Key libraries/features
 
 - Argon2 for password hashing and verification
 - AES-GCM for password encryption and decryption using master password as key
@@ -10,6 +10,8 @@ Passvault is a minimal and secure CLI based password manager written in Rust. Al
 - clap library for the CLI
 - rusqlite to interact with the SQLite database
 - arboard for clipboard integration
+- passwords for secure password generation
+- zxcvbn for password strength checking
 
 ## Usage
 
@@ -53,6 +55,7 @@ passvault get <name>                            # Get a specific password entry 
 passvault add <name> <username> <password>      # Add a new password entry
 passvault update <name> <username> <password>   # Update an existing password entry
 passvault delete <name>                         # Delete a password entry
+passvault audit                                 # Audit all passwords and check their strength
 passvault export <output> <format>              # Export passwords to a file
 passvault change-master-password                # Change the master password
 passvault reset                                 # Reset the database

@@ -100,15 +100,43 @@ fn main() -> Result<()> {
                     let password = if let Some(p) = password {
                         p
                     } else {
-                        // Ask if user wants to generate a password
-                        if let Some(generated) = vault.prompt_generate_password()? {
-                            // Copy generated password to clipboard
-                            let mut clipboard = Clipboard::new()?;
-                            clipboard.set_text(&generated)?;
-                            println!("Generated password copied to clipboard!");
-                            generated
-                        } else {
-                            prompt_password("Password")?
+                        // Loop until user provides an acceptable password
+                        loop {
+                            // Ask if user wants to generate a password
+                            if let Some(generated) = vault.prompt_generate_password()? {
+                                // Copy generated password to clipboard
+                                let mut clipboard = Clipboard::new()?;
+                                clipboard.set_text(&generated)?;
+                                println!("Generated password copied to clipboard!");
+                                break generated;
+                            } else {
+                                // User wants to enter custom password
+                                let custom_password = prompt_password("Password")?;
+
+                                // Check password strength
+                                let (score, strength, warning) = vault.check_password_strength(
+                                    &custom_password
+                                )?;
+
+                                if score < 3 {
+                                    println!("\n⚠️  Password Strength: {} ({}/4)", strength, score);
+                                    if let Some(warn) = warning {
+                                        println!("   {}", warn);
+                                    }
+
+                                    let response = prompt_input(
+                                        "\nThis password is not very secure. Continue anyway? (y/n)"
+                                    )?;
+                                    if response.to_lowercase() != "y" {
+                                        println!("Please try again with a stronger password.\n");
+                                        continue; // Go back to the start of the loop
+                                    }
+                                } else {
+                                    println!("✅ Password Strength: {} ({}/4)", strength, score);
+                                }
+
+                                break custom_password;
+                            }
                         }
                     };
 
@@ -164,6 +192,10 @@ fn main() -> Result<()> {
                     } else {
                         println!("Reset cancelled.");
                     }
+                }
+
+                Commands::Audit => {
+                    vault.audit_passwords()?;
                 }
             }
         }

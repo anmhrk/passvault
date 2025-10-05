@@ -5,6 +5,7 @@ use crate::db::Database;
 use crate::crypto::{ PasswordCrypto, PasswordHasher };
 use crate::utils::{ prompt_password, prompt_input };
 use passwords::PasswordGenerator;
+use zxcvbn::zxcvbn;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PasswordEntry {
@@ -241,5 +242,89 @@ impl PasswordVault {
             .map_err(|e| anyhow::anyhow!("Failed to generate password: {}", e))?;
 
         Ok(password)
+    }
+
+    pub fn check_password_strength(&self, password: &str) -> Result<(u8, String, Option<String>)> {
+        let entropy = zxcvbn(password, &[]);
+
+        let score_value: u8 = entropy.score().into(); // 0-4 scale
+        let strength = match score_value {
+            0 => "Very Weak",
+            1 => "Weak",
+            2 => "Fair",
+            3 => "Strong",
+            4 => "Very Strong",
+            _ => "Unknown",
+        };
+
+        let warning = entropy
+            .feedback()
+            .as_ref()
+            .and_then(|f| f.warning())
+            .map(|w| w.to_string());
+
+        Ok((score_value, strength.to_string(), warning))
+    }
+
+    pub fn audit_passwords(&self) -> Result<()> {
+        let entries = self.list()?;
+
+        if entries.is_empty() {
+            println!("No password entries found in the vault.");
+            return Ok(());
+        }
+
+        println!("\nPassword Audit Report\n");
+        println!("{:<20} {:<15} {:<15}", "Name", "Strength", "Score");
+        println!("{}", "=".repeat(50));
+
+        let mut weak_count = 0;
+        let mut fair_count = 0;
+        let mut strong_count = 0;
+
+        for entry in &entries {
+            let (score, strength, warning) = self.check_password_strength(&entry.password)?;
+
+            match score {
+                0..=1 => {
+                    weak_count += 1;
+                }
+                2 => {
+                    fair_count += 1;
+                }
+                3..=4 => {
+                    strong_count += 1;
+                }
+                _ => {}
+            }
+
+            let strength_icon = match score {
+                0..=1 => "🔴",
+                2 => "🟡",
+                3..=4 => "🟢",
+                _ => "⚪",
+            };
+
+            println!("{:<20} {:<15} {}/4  {}", entry.name, strength, score, strength_icon);
+
+            if let Some(warn) = warning {
+                println!("  ⚠️  {}", warn);
+            }
+        }
+
+        println!("\n{}", "=".repeat(50));
+        println!("Summary:");
+        println!("  Strong passwords: {}", strong_count);
+        println!("  Fair passwords:   {}", fair_count);
+        println!("  Weak passwords:   {}", weak_count);
+        println!("  Total:            {}", entries.len());
+
+        if weak_count > 0 {
+            println!(
+                "\n⚠️  Consider updating weak passwords using the 'update' command with generated passwords."
+            );
+        }
+
+        Ok(())
     }
 }
