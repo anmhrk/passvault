@@ -100,7 +100,16 @@ fn main() -> Result<()> {
                     let password = if let Some(p) = password {
                         p
                     } else {
-                        prompt_password("Password")?
+                        // Ask if user wants to generate a password
+                        if let Some(generated) = vault.prompt_generate_password()? {
+                            // Copy generated password to clipboard
+                            let mut clipboard = Clipboard::new()?;
+                            clipboard.set_text(&generated)?;
+                            println!("Generated password copied to clipboard!");
+                            generated
+                        } else {
+                            prompt_password("Password")?
+                        }
                     };
 
                     let entry = PasswordEntry {

@@ -3,7 +3,8 @@ use serde::{ Deserialize, Serialize };
 use std::fs;
 use crate::db::Database;
 use crate::crypto::{ PasswordCrypto, PasswordHasher };
-use crate::utils::{ prompt_password };
+use crate::utils::{ prompt_password, prompt_input };
+use passwords::PasswordGenerator;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PasswordEntry {
@@ -207,5 +208,38 @@ impl PasswordVault {
         }
 
         Ok(())
+    }
+
+    pub fn prompt_generate_password(&self) -> Result<Option<String>> {
+        let response = prompt_input("Generate a password? (y/n)")?;
+
+        if response.to_lowercase() != "y" {
+            return Ok(None);
+        }
+
+        let password = self.generate_password()?;
+        println!("\nGenerated password: {}", password);
+
+        Ok(Some(password))
+    }
+
+    fn generate_password(&self) -> Result<String> {
+        // Use sane defaults: 20 characters with uppercase, lowercase, numbers, and symbols
+        let pg = PasswordGenerator {
+            length: 20,
+            numbers: true,
+            lowercase_letters: true,
+            uppercase_letters: true,
+            symbols: true,
+            spaces: false,
+            exclude_similar_characters: true,
+            strict: true,
+        };
+
+        let password = pg
+            .generate_one()
+            .map_err(|e| anyhow::anyhow!("Failed to generate password: {}", e))?;
+
+        Ok(password)
     }
 }

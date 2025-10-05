@@ -1,6 +1,6 @@
 # Passvault
 
-Passvault is a minimal and secure password manager written in Rust. All passwords are securely encrypted and stored locally in a SQLite database.
+Passvault is a minimal and secure CLI based password manager written in Rust. All passwords are securely encrypted and stored locally in a SQLite database.
 
 ## Key libraries
 
@@ -9,16 +9,44 @@ Passvault is a minimal and secure password manager written in Rust. All password
 - rpassword for secure password input
 - clap library for the CLI
 - rusqlite to interact with the SQLite database
+- arboard for clipboard integration
 
-## Installation
+## Usage
 
-1. Make sure you have [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) installed.
+### Pre-requisites
 
-2. Run `cargo install passvault` to install the binary.
+- Make sure you have [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) and [Rust](https://rust-lang.org/learn/get-started/) installed.
 
-## Commands available
+### Installation
 
 ```bash
+cargo install passvault
+```
+
+### Local development
+
+1. Clone the repository
+
+```bash
+git clone https://github.com/anmhrk/passvault.git
+cd passvault
+```
+
+2. Install dependencies
+
+```bash
+cargo install --path .
+```
+
+3. Run the application
+
+```bash
+cargo run init # Initialize the password vault
+```
+
+### Commands available
+
+```
 passvault init                                  # Initialize the password vault
 passvault list                                  # List all stored passwords
 passvault get <name>                            # Get a specific password entry (optional -c flag to copy to clipboard)

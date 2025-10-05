@@ -5,6 +5,7 @@ version = "0.1.0"
 edition = "2024"
 readme = "README.md"
 repository = "https://github.com/anmhrk/passvault"
+license = "MIT"
 keywords = ["password manager", "cli"]
 
 [dependencies]
@@ -21,3 +22,4 @@ rand = "0.8"
 base64 = "0.22"
 dirs = "5.0"
 arboard = "3.6.0"
+passwords = "3.1"
